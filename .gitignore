@@ -1,0 +1,3 @@
+.venv
+.vscode
+/webapp/__pycache__/
