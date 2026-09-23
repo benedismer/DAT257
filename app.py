@@ -7,19 +7,37 @@ environment variables (see .env.example). Nothing secret is hard-coded here.
 """
 
 import os
-from flask import Flask, jsonify
+
+from flask import Flask, jsonify, render_template
+
+from event import create_sample_events
+
+# TODO for 1.1
+# To display List.html, import render_template and call it from a route.
+# The template expects one variable named "events": a list of event objects.
+# Each event should have these names, matching database/schema.sql:
+# event.id, event.event_name, event.country, event.city, event.time, event.date
+# Example: render_template("List.html", events=events)
 
 # The database connection lives in the database package (database/db.py), so the
 # connection details are defined in exactly one place. Feature/CRUD functions
 # should also live in the database package and import get_db_connection there.
 from database.db import get_db_connection
 
-app = Flask(__name__)
+# Flask searches the templates/ directory relative to this application file.
+app = Flask(__name__, template_folder="templates")
 
 
 @app.route("/")
 def index():
     return "Hello, World!"
+
+@app.route("/List")
+def event_list():
+    # render_template looks for List.html in the folder configured above.
+    # For now, `events` contains Python objects instead of database results.
+    events = create_sample_events()
+    return render_template("List.html", events=events)
 
 
 @app.route("/health")
