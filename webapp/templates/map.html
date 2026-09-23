@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Event map</title>
+
+    <!-- loads Leaflet map -->
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+
+<body>
+    <!-- page heading -->
+    <h1>Event map</h1>
+
+    <!-- This is where the map will be shown -->
+    <div id="map" style="height: 500px;"></div>
+
+    <!-- This loads the Leaflet functions -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // creates map and centers it on Gothenburg
+        const map = L.map("map").setView([57.7089, 11.9746], 13);
+
+        // loads the map image from OpenStreetMap
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "&copy; OpenStreetMap"
+        }).addTo(map);
+    </script>
+</body>
+
+</html>
