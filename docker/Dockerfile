@@ -12,7 +12,9 @@ WORKDIR /app
 
 # Install dependencies first (separate layer) so Docker can cache them.
 # Rebuilds only reinstall packages when requirements.txt actually changes.
-COPY requirements.txt .
+# The build context is the project ROOT, and requirements.txt lives in docker/,
+# so we reference it at that path. It is copied to /app/requirements.txt.
+COPY docker/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application source.

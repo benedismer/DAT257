@@ -31,20 +31,46 @@ file the server **reloads automatically** — no rebuild needed.
 
 ## Using Docker 
 
-- **`docker-compose.yml`** defines the two containers (`web` and `db`) and wires
-  them together on a private network. The app finds the database at the hostname
-  `db` (that's why `POSTGRES_HOST=db` in `.env`).
-- **`Dockerfile`** describes to docker how to build the `web` image (Python + our
-  dependencies + the app code). It describes all the tools in the toolbox and how it is used.
-- **`requirements.txt`** pins the exact Python packages. 
-- **`.env`** (yours, local, git-ignored) holds credentials and the map API key. You can not 
+The Docker configuration lives in the **`docker/`** folder, while the
+application code (`app.py`, `database/`) lives in the project **root**. You can
+still run every `make` command from the project root — a small root `Makefile`
+forwards commands to `docker/Makefile`.
+
+```
+DAT257/
+├── app.py                 # Flask app (root)
+├── database/              # DB connection + schema.sql (root)
+├── .env                   # your local secrets (root, git-ignored)
+├── Makefile               # thin forwarder → docker/Makefile
+└── docker/                # all Docker config lives here
+    ├── docker-compose.yml
+    ├── Dockerfile
+    ├── Makefile           # the real make targets
+    ├── requirements.txt
+    ├── .dockerignore      # (actually at the root — see note below)
+    └── .env.example
+```
+
+- **`docker/docker-compose.yml`** defines the two containers (`web` and `db`) and
+  wires them together on a private network. The app finds the database at the
+  hostname `db` (that's why `POSTGRES_HOST=db` in `.env`). Its paths point up to
+  the project root (build context, source mount, and `schema.sql`).
+- **`docker/Dockerfile`** describes to docker how to build the `web` image
+  (Python + our dependencies + the app code). It describes all the tools in the
+  toolbox and how it is used.
+- **`docker/requirements.txt`** pins the exact Python packages. 
+- **`.env`** (yours, local, git-ignored, in the **project root**) holds
+   credentials and the map API key. You can not
    commit your login information to the database or things like that where everyone can see it
    but since docker controls everything abot the setup docker needs to know these things. The 
    .env file tells docker how to access all the things it needs on your individual computer
    without letting people on git or people inspecting your web page code know. 
-  **`.env.example`** (committed) is the template. You can look here to see what docker needs 
-  you to fill in into your personal .env file
-- **`Makefile`** is just shortcuts for the `docker compose` commands above.
+  **`docker/.env.example`** (committed) is the template. You can look here to see
+  what docker needs you to fill in into your personal `.env` file.
+- **`docker/Makefile`** is just shortcuts for the `docker compose` commands above;
+  the **root `Makefile`** forwards to it so `make ...` works from the root.
+- **`.dockerignore`** sits in the project root (that is where Docker reads it from
+  during a build, since the build context is the root).
 - The database's data lives in a Docker **volume** (`pgdata`) so it survives
   `make down`. Only `make teardown` deletes it.
 
@@ -122,16 +148,17 @@ make --version
 
 Do this once, after cloning the repo.
 
-1. **Create your local environment file** from the template:
+1. **Create your local environment file** from the template. The template lives
+   in `docker/`, but your `.env` must go in the **project root**:
    ```bash
-   cp .env.example .env       # macOS / Linux / WSL
+   cp docker/.env.example .env       # macOS / Linux / WSL
    ```
    ```powershell
-   copy .env.example .env     # Windows PowerShell / CMD
+   copy docker\.env.example .env     # Windows PowerShell / CMD
    ```
    `.env` holds your database credentials and the map API key. It is
-   **git-ignored** — never commit it. The committed `.env.example` is just a
-   template listing which variables exist.
+   **git-ignored** — never commit it. The committed `docker/.env.example` is just
+   a template listing which variables exist.
 
 2. **(Later) add your map API key.** When we've picked a map provider, paste your
    key into `.env`:
@@ -173,20 +200,25 @@ A normal day: `make up`, do your work (edits reload automatically), then
 
 ### Without make (raw docker compose)
 
-If you can't use `make` (e.g. plain Windows PowerShell), run these directly.
-Every `make` target maps to one of these:
+If you can't use `make` (e.g. plain Windows PowerShell), run these directly
+**from the project root**. Because the compose file lives in `docker/`, each
+command passes `-f docker/docker-compose.yml`. Every `make` target maps to one of
+these:
 
-| Instead of | Run |
+| Instead of | Run (from the project root) |
 |------------|-----|
-| `make up` | `docker compose up -d` |
-| `make up-build` | `docker compose up -d --build` |
-| `make down` | `docker compose down` |
-| `make teardown` | `docker compose down -v` |
-| `make restart` | `docker compose down && docker compose up -d` |
-| `make build` | `docker compose build` |
-| `make rebuild` | `docker compose build --no-cache` |
-| `make ps` | `docker compose ps` |
-| `make logs` | `docker compose logs -f` |
+| `make up` | `docker compose -f docker/docker-compose.yml up -d` |
+| `make up-build` | `docker compose -f docker/docker-compose.yml up -d --build` |
+| `make down` | `docker compose -f docker/docker-compose.yml down` |
+| `make teardown` | `docker compose -f docker/docker-compose.yml down -v` |
+| `make restart` | `docker compose -f docker/docker-compose.yml down && docker compose -f docker/docker-compose.yml up -d` |
+| `make build` | `docker compose -f docker/docker-compose.yml build` |
+| `make rebuild` | `docker compose -f docker/docker-compose.yml build --no-cache` |
+| `make ps` | `docker compose -f docker/docker-compose.yml ps` |
+| `make logs` | `docker compose -f docker/docker-compose.yml logs -f` |
+
+> Tip: `docker compose` reads variables from `.env` in the directory you run it
+> from, so run these from the **project root** (where your `.env` lives).
 
 ---
 
@@ -208,8 +240,9 @@ make down        # tear down: stop, but remember the data
 make teardown    # full tear down: stop AND wipe the database
 ```
 
-Raw equivalents: `docker compose up -d`, `docker compose down`,
-`docker compose down -v`.
+Raw equivalents: `docker compose -f docker/docker-compose.yml up -d`,
+`docker compose -f docker/docker-compose.yml down`,
+`docker compose -f docker/docker-compose.yml down -v`.
 
 ---
 
@@ -217,12 +250,12 @@ Raw equivalents: `docker compose up -d`, `docker compose down`,
 
 You can start or stop the app and the database separately.
 
-| Command | Raw equivalent | What it does |
+| Command | Raw equivalent (from project root) | What it does |
 |---------|----------------|--------------|
-| `make up-db` | `docker compose up -d db` | Start only the database |
-| `make up-web` | `docker compose up -d web` | Start only the Flask app |
-| `make stop-web` | `docker compose stop web` | Stop only the app (don't delete it) |
-| `make stop-db` | `docker compose stop db` | Stop only the database (don't delete it) |
+| `make up-db` | `docker compose -f docker/docker-compose.yml up -d db` | Start only the database |
+| `make up-web` | `docker compose -f docker/docker-compose.yml up -d web` | Start only the Flask app |
+| `make stop-web` | `docker compose -f docker/docker-compose.yml stop web` | Stop only the app (don't delete it) |
+| `make stop-db` | `docker compose -f docker/docker-compose.yml stop db` | Stop only the database (don't delete it) |
 
 Example: restart just the app without touching the database:
 ```bash
@@ -274,7 +307,7 @@ service on Linux: `sudo systemctl start docker`.
 
 **Port 5000 is already in use.**
 Something else is using the port. Stop it, or change the mapping in
-`docker-compose.yml` from `"5000:5000"` to e.g. `"5001:5000"`, then use
+`docker/docker-compose.yml` from `"5000:5000"` to e.g. `"5001:5000"`, then use
 http://localhost:5001.
 
 **`make: command not found` (Windows).**
@@ -292,7 +325,8 @@ for it, but if you started them separately, give `db` a moment, then check
 `make logs-db`.
 
 **I changed `requirements.txt` but nothing updated.**
-Rebuild the image: `make up-build` (or `docker compose up -d --build`).
+Rebuild the image: `make up-build` (or
+`docker compose -f docker/docker-compose.yml up -d --build`).
 
 **I want a completely fresh database.**
 `make teardown` then `make up` (this deletes all database data).

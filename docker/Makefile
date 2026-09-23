@@ -14,6 +14,14 @@
 #     make up DC="docker-compose"
 DC ?= docker compose
 
+# Directory this Makefile lives in (the docker/ folder), resolved absolutely so
+# targets work whether you run `make` from the project root (via the root
+# Makefile) or from inside docker/. The compose file sets `name: dat257`, so the
+# stack name is consistent with raw `docker compose` commands too. We pass the
+# root .env explicitly so variable substitution works regardless of cwd.
+THIS_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
+COMPOSE  := $(DC) --env-file $(THIS_DIR)../.env -f $(THIS_DIR)docker-compose.yml
+
 # `make` with no target shows help.
 .DEFAULT_GOAL := help
 
@@ -35,70 +43,70 @@ help: ## Show this help (list of all targets)
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
 up: ## TEAR UP: start the whole project (app + database) in the background
-	$(DC) up -d
+	$(COMPOSE) up -d
 
 up-build: ## Start the whole project, rebuilding images first (after dependency changes)
-	$(DC) up -d --build
+	$(COMPOSE) up -d --build
 
 down: ## TEAR DOWN: stop & remove containers, but KEEP the database data
-	$(DC) down
+	$(COMPOSE) down
 
 teardown: ## FULL TEAR DOWN: stop & remove containers AND delete database data (fresh start)
-	$(DC) down -v
+	$(COMPOSE) down -v
 
 restart: ## Restart the whole project (down then up)
-	$(DC) down
-	$(DC) up -d
+	$(COMPOSE) down
+	$(COMPOSE) up -d
 
 ## ----------------------------------------------------------------------------
 ## Building
 ## ----------------------------------------------------------------------------
 
 build: ## Build (or rebuild) images without starting containers
-	$(DC) build
+	$(COMPOSE) build
 
 rebuild: ## Rebuild images from scratch, ignoring the cache
-	$(DC) build --no-cache
+	$(COMPOSE) build --no-cache
 
 ## ----------------------------------------------------------------------------
 ## Individual parts (start/stop one container at a time)
 ## ----------------------------------------------------------------------------
 
 up-db: ## Start ONLY the database container
-	$(DC) up -d db
+	$(COMPOSE) up -d db
 
 up-web: ## Start ONLY the web (Flask) container
-	$(DC) up -d web
+	$(COMPOSE) up -d web
 
 stop-web: ## Stop ONLY the web container (leave it around, don't delete)
-	$(DC) stop web
+	$(COMPOSE) stop web
 
 stop-db: ## Stop ONLY the database container (leave it around, don't delete)
-	$(DC) stop db
+	$(COMPOSE) stop db
 
 ## ----------------------------------------------------------------------------
 ## Inspecting / debugging
 ## ----------------------------------------------------------------------------
 
 ps: ## Show the status of the project's containers
-	$(DC) ps
+	$(COMPOSE) ps
 
 status: ps ## Alias for `ps`
 
 logs: ## Follow logs from all containers (Ctrl-C to stop watching)
-	$(DC) logs -f
+	$(COMPOSE) logs -f
 
 logs-web: ## Follow logs from only the web (Flask) container
-	$(DC) logs -f web
+	$(COMPOSE) logs -f web
 
 logs-db: ## Follow logs from only the database container
-	$(DC) logs -f db
+	$(COMPOSE) logs -f db
 
 shell: ## Open a shell inside the running web container
-	$(DC) exec web /bin/bash
+	$(COMPOSE) exec web /bin/bash
 
 db-shell: ## Open a psql prompt inside the running database container
-	$(DC) exec db psql -U $${POSTGRES_USER:-appuser} -d $${POSTGRES_DB:-appdb}
+	$(COMPOSE) exec db psql -U $${POSTGRES_USER:-appuser} -d $${POSTGRES_DB:-appdb}
 
 ## ----------------------------------------------------------------------------
 ## Housekeeping
