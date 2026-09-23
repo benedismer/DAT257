@@ -2,40 +2,19 @@
 Flask application entrypoint.
 
 Kept intentionally simple (single-file) so teammates new to Flask can read it
-top-to-bottom. It builds on the basic example:
-
-    from flask import Flask
-    app = Flask(__name__)
-    @app.route('/')
-    def index():
-        return "Hello, World!"
-
-...and adds a database connection to PostgreSQL, configured entirely through
+top-to-bottom. It builds on the basic example and adds a database connection to PostgreSQL, configured entirely through
 environment variables (see .env.example). Nothing secret is hard-coded here.
 """
 
 import os
-
-import psycopg
 from flask import Flask, jsonify
 
+# The database connection lives in the database package (database/db.py), so the
+# connection details are defined in exactly one place. Feature/CRUD functions
+# should also live in the database package and import get_db_connection there.
+from database.db import get_db_connection
+
 app = Flask(__name__)
-
-
-def get_db_connection():
-    """Open a new connection to Postgres using env-var config.
-
-    All values come from the environment (injected by Docker Compose from the
-    .env file). We fall back to sensible local defaults so the app can also be
-    run outside Docker if someone wants to.
-    """
-    return psycopg.connect(
-        host=os.environ.get("POSTGRES_HOST", "db"),
-        port=os.environ.get("POSTGRES_PORT", "5432"),
-        dbname=os.environ.get("POSTGRES_DB", "appdb"),
-        user=os.environ.get("POSTGRES_USER", "appuser"),
-        password=os.environ.get("POSTGRES_PASSWORD", "changeme"),
-    )
 
 
 @app.route("/")

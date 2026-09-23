@@ -232,6 +232,40 @@ make up-web
 
 ---
 
+## Database schema
+
+The database structure lives in **`database/schema.sql`** (the single source of
+truth for the tables). `docker-compose.yml` mounts it into the Postgres container's 
+auto-init folder, so it runs **automatically** the first time the database is created.
+
+- First `make up` on a fresh clone → the database is created **and** the tables
+  from `schema.sql` are loaded. Nothing manual.
+- `make down` then `make up` → your data (and tables) are still there.
+- `make teardown` then `make up` → the database is wiped and `schema.sql` runs
+  again from scratch.
+
+Check the tables exist any time:
+```bash
+make db-shell     # opens a psql prompt inside the db container
+\dt               # list tables
+```
+
+### Changing the schema
+
+Because auto-init only runs when the database is **empty**, editing
+`schema.sql` does **not** update a database that already has data. You have two
+options:
+
+**Reset (easiest, DELETES all local data).** Good during early
+development when you don't care about the data in your local database:
+```bash
+make teardown     # removes containers AND the pgdata volume
+make up           # recreates the DB and re-runs schema.sql with your changes
+```
+You can alter tables but that is not needed to deal with in our development
+
+---
+
 ## Troubleshooting
 
 **"Cannot connect to the Docker daemon" / "Is the docker daemon running?"**
