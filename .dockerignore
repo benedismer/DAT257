@@ -1,0 +1,13 @@
+# Files/dirs that should NOT be sent to the Docker build or copied into the image.
+.git
+.gitignore
+.dockerignore
+.env
+*.md
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/

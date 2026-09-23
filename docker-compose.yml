@@ -1,0 +1,43 @@
+# Docker Compose: runs the whole stack locally on each developer's machine.
+# Two separate containers (services): the Flask "web" app and the "db" Postgres.
+# They talk over a private network Compose creates automatically; the app reaches
+# the database using the hostname "db" (see POSTGRES_HOST in .env.example).
+
+services:
+  web:
+    build: .
+    # Read secrets/config (DB creds, MAP_API_KEY) from your local .env file.
+    env_file:
+      - .env
+    ports:
+      # host:container -> visit http://localhost:5000 in your browser.
+      - "5000:5000"
+    volumes:
+      # Mount your source into the container so edits reload live (dev only).
+      - .:/app
+    depends_on:
+      # Wait until Postgres reports healthy before starting the app.
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16
+    env_file:
+      - .env
+    # The postgres image initializes the database from these standard vars.
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      # Named volume persists database data across `make down` / restarts.
+      # It is only removed by `make teardown` (docker compose down -v).
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
