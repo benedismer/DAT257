@@ -1,0 +1,64 @@
+# Docker Compose: runs the whole stack locally on each developer's machine.
+# Two separate containers (services): the Flask "web" app and the "db" Postgres.
+# They talk over a private network Compose creates automatically; the app reaches
+# the database using the hostname "db" (see POSTGRES_HOST in .env.example).
+#
+# NOTE: this file lives in docker/, but the app code (app.py, database/) lives in
+# the PROJECT ROOT. So all paths below use ".." to point one level up at the root.
+# The Makefile runs compose with `-f docker/docker-compose.yml`, so relative paths
+# resolve against this file's location (docker/).
+
+# Fixed project name so `make` and raw `docker compose` commands share the SAME
+# stack (containers/volumes named dat257-*). Without this, raw compose would
+# infer the name from the parent folder ("docker") and create a second stack.
+name: dat257
+
+services:
+  web:
+    build:
+      # Build context is the project root (one level up), so the Dockerfile can
+      # COPY app.py, requirements.txt, and database/. The Dockerfile itself lives
+      # here in docker/, so we point at it explicitly.
+      context: ..
+      dockerfile: docker/Dockerfile
+    # Read secrets/config (DB creds, MAP_API_KEY) from the root .env file.
+    env_file:
+      - ../.env
+    ports:
+      # host:container -> visit http://localhost:5000 in your browser.
+      - "5000:5000"
+    volumes:
+      # Mount the project root into the container so edits reload live (dev only).
+      - ..:/app
+    depends_on:
+      # Wait until Postgres reports healthy before starting the app.
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16
+    env_file:
+      - ../.env
+    # The postgres image reads POSTGRES_DB/USER/PASSWORD directly from the
+    # env_file above to initialize the database — no need to repeat them here.
+    volumes:
+      # Named volume persists database data across `make down` / restarts.
+      # It is only removed by `make teardown` (docker compose down -v).
+      - pgdata:/var/lib/postgresql/data
+      # Auto-load the schema. Any .sql file in this special folder is run by the
+      # postgres image the FIRST time the database initializes (i.e. when the
+      # pgdata volume is empty: fresh clone or after `make teardown`). This is
+      # why `make up` gives you a ready-to-use database with no manual steps.
+      # ":ro" mounts it read-only. See the README "Changing the schema" section.
+      - ../database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      # Read the credentials from inside the container (set via env_file), using
+      # single quotes so the shell expands $POSTGRES_* at runtime rather than
+      # Compose substituting them at parse time (which would need a host .env).
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

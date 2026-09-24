@@ -1,0 +1,4 @@
+# Pinned exact versions for reproducible builds across everyone's machines.
+# Bump these deliberately (all together) rather than letting them float.
+Flask==3.0.3
+psycopg[binary]==3.2.1
