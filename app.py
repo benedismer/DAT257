@@ -19,10 +19,10 @@ from event import create_sample_events
 # event.id, event.event_name, event.country, event.city, event.time, event.date
 # Example: render_template("List.html", events=events)
 
-# The database connection lives in the database package (database/db.py), so the
+# The database connection lives in the database package (database/database.py), so the
 # connection details are defined in exactly one place. Feature/CRUD functions
 # should also live in the database package and import get_db_connection there.
-from database.db import get_db_connection
+from database.database import get_db_connection
 
 # Flask searches the templates/ directory relative to this application file.
 app = Flask(__name__, template_folder="templates")

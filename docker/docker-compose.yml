@@ -45,12 +45,12 @@ services:
       # Named volume persists database data across `make down` / restarts.
       # It is only removed by `make teardown` (docker compose down -v).
       - pgdata:/var/lib/postgresql/data
-      # Auto-load the schema. Any .sql file in this special folder is run by the
+      # Auto-load the schema. This SQL file is run by the
       # postgres image the FIRST time the database initializes (i.e. when the
       # pgdata volume is empty: fresh clone or after `make teardown`). This is
       # why `make up` gives you a ready-to-use database with no manual steps.
       # ":ro" mounts it read-only. See the README "Changing the schema" section.
-      - ../database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+      - ../database/tables.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     healthcheck:
       # Read the credentials from inside the container (set via env_file), using
       # single quotes so the shell expands $POSTGRES_* at runtime rather than
