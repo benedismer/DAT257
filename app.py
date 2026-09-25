@@ -7,7 +7,7 @@ environment variables (see .env.example). Nothing secret is hard-coded here.
 """
 
 import os
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template
 
 # The database connection lives in the database package (database/db.py), so the
 # connection details are defined in exactly one place. Feature/CRUD functions
@@ -20,6 +20,10 @@ app = Flask(__name__)
 @app.route("/")
 def index():
     return "Hello, World!"
+
+@app.route("/map")
+def map():
+    return render_template('map.html')
 
 
 @app.route("/health")
