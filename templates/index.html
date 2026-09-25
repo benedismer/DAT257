@@ -1,102 +1,198 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Event map</title>
+{% set active_page = 'home' %}
 
-    <!-- loads Leaflet map -->
-    <link rel="stylesheet"
-          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <style>
-        body { margin: 0; font-family: Arial, sans-serif; }
-        h1 { margin: 24px; }
-        #map { height: 500px; }
-        .event-form { display: grid; gap: 8px; min-width: 220px; }
-        .event-form label { display: grid; gap: 3px; font-size: 12px; }
-        .event-form input { padding: 5px; }
-        .event-form button { padding: 7px; cursor: pointer; }
-        .form-message { margin: 0; font-size: 12px; }
-    </style>
-</head>
+{% block title %}Event map{% endblock %}
 
-<body>
-    <!-- page heading -->
-    <h1>Event map</h1>
+{% block head_extra %}
+	<!-- Leaflet map -->
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+{% endblock %}
 
-    <!-- This is where the map will be shown -->
-    <div id="map" style="height: 500px;"></div>
+{% block styles %}
+		.page {
+			width: min(1100px, calc(100% - 32px));
+			margin: 0 auto;
+			padding: 40px 0 64px;
+		}
 
-    <!-- This loads the Leaflet functions -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+		.page-intro {
+			max-width: 60ch;
+			margin: 0 0 24px;
+		}
 
-    <script>
-        
-    // creates map and centers it on Gothenburg
-    const map = L.map("map").setView([57.7089, 11.9746], 13);
+		.page-intro h2 {
+			margin: 0 0 6px;
+			font-size: 1.5rem;
+			font-weight: 600;
+		}
 
-    // loads the map image from OpenStreetMap
-        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            attribution: "&copy; OpenStreetMap"
-    }).addTo(map);
+		.page-intro p {
+			margin: 0;
+			color: var(--text-muted);
+		}
 
-    const events = {{ events | default([]) | tojson }};
+		/* map framed with a visible border rather than a shadow (design.md §3) */
+		#map {
+			height: 520px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+		}
 
-    function addEventMarker(event) {
-        L.marker([event[6], event[7]])
-            .addTo(map)
-            .bindPopup(`<strong>${event[1]}</strong><br>${event[5]} at ${event[4]}`);
-    }
+		.map-hint {
+			margin: 12px 2px 0;
+			color: var(--text-muted);
+			font-family: var(--font-mono);
+			font-size: 0.8rem;
+		}
 
-    events.forEach(addEventMarker);
+		/* ---- Create-event popup form ---- */
+		.event-form {
+			display: grid;
+			gap: 10px;
+			min-width: 232px;
+			font-family: var(--font-ui);
+		}
 
-    map.on("click", (clickEvent) => {
-        const latitude = clickEvent.latlng.lat.toFixed(6);
-        const longitude = clickEvent.latlng.lng.toFixed(6);
-        const form = document.createElement("form");
-        form.className = "event-form";
-        form.innerHTML = `
-            <strong>Create event</strong>
-            <label>Name <input name="event_name" required></label>
-            <label>Country <input name="country"></label>
-            <label>City <input name="city"></label>
-            <label>Date <input name="date" type="date" required></label>
-            <label>Time <input name="time" type="time" required></label>
-            <button type="submit">Save event</button>
-            <p class="form-message" aria-live="polite"></p>
-        `;
+		.event-form .form-title {
+			font-size: 1rem;
+			font-weight: 600;
+			color: var(--text);
+		}
 
-        form.addEventListener("submit", async (submitEvent) => {
-            submitEvent.preventDefault();
-            const formData = new FormData(form);
-            const payload = Object.fromEntries(formData.entries());
-            payload.latitude = latitude;
-            payload.longitude = longitude;
-            const message = form.querySelector(".form-message");
+		.event-form label {
+			display: grid;
+			gap: 4px;
+			/* monospace metadata labels — the "oldschool" seasoning (§3, §4) */
+			font-family: var(--font-mono);
+			font-size: 0.72rem;
+			letter-spacing: 0.02em;
+			color: var(--text-muted);
+			text-transform: uppercase;
+		}
 
-            try {
-                const response = await fetch("/events", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
-                });
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.error || "Could not save event");
-                message.textContent = "Event saved.";
-                addEventMarker([result.id, payload.event_name, payload.country, payload.city,
-                    payload.time, payload.date, latitude, longitude]);
-                map.closePopup();
-            } catch (error) {
-                message.textContent = error.message;
-            }
-        });
+		.event-form input {
+			padding: 8px 10px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			color: var(--text);
+			font: 0.9rem var(--font-ui);
+		}
 
-        L.popup().setLatLng(clickEvent.latlng).setContent(form).openOn(map);
-    });
+		.event-form input:focus {
+			outline: none;
+			border-color: var(--accent);
+			box-shadow: 0 0 0 2px var(--accent-light);
+		}
 
-     
-    </script>
-</body>
+		.event-form button {
+			margin-top: 4px;
+			padding: 9px 12px;
+			border: 1px solid var(--accent);
+			border-radius: var(--radius);
+			background: var(--accent);
+			color: #fff;
+			font: 600 0.9rem var(--font-ui);
+			cursor: pointer;
+			transition: background-color 160ms ease-out;
+		}
 
-</html>
+		.event-form button:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+		.form-message {
+			margin: 2px 0 0;
+			font-family: var(--font-mono);
+			font-size: 0.75rem;
+			color: var(--accent-hover);
+		}
+
+		/* keep Leaflet popup calm and on-brand */
+		.leaflet-popup-content-wrapper {
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			box-shadow: none;
+		}
+		.leaflet-popup-tip { border: 1px solid var(--border); }
+		.leaflet-popup-content strong { color: var(--text); }
+{% endblock %}
+
+{% block content %}
+	<div class="page">
+		<div class="page-intro">
+			<h2>Where things are happening</h2>
+			<p>Each pin is an event. Click a pin for details, or click anywhere on the map to add one.</p>
+		</div>
+
+		<div id="map"></div>
+		<p class="map-hint"># click the map to drop a new event</p>
+	</div>
+{% endblock %}
+
+{% block scripts %}
+	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+	<script>
+		// creates map and centers it on Gothenburg
+		const map = L.map("map").setView([57.7089, 11.9746], 13);
+
+		// loads the map image from OpenStreetMap
+		L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+			attribution: "&copy; OpenStreetMap"
+		}).addTo(map);
+
+		const events = {{ events | default([]) | tojson }};
+
+		function addEventMarker(event) {
+			L.marker([event[6], event[7]])
+				.addTo(map)
+				.bindPopup(`<strong>${event[1]}</strong><br>${event[5]} at ${event[4]}`);
+		}
+
+		events.forEach(addEventMarker);
+
+		map.on("click", (clickEvent) => {
+			const latitude = clickEvent.latlng.lat.toFixed(6);
+			const longitude = clickEvent.latlng.lng.toFixed(6);
+			const form = document.createElement("form");
+			form.className = "event-form";
+			form.innerHTML = `
+				<span class="form-title">Create event</span>
+				<label>Name <input name="event_name" required></label>
+				<label>Country <input name="country"></label>
+				<label>City <input name="city"></label>
+				<label>Date <input name="date" type="date" required></label>
+				<label>Time <input name="time" type="time" required></label>
+				<button type="submit">Save event</button>
+				<p class="form-message" aria-live="polite"></p>
+			`;
+
+			form.addEventListener("submit", async (submitEvent) => {
+				submitEvent.preventDefault();
+				const formData = new FormData(form);
+				const payload = Object.fromEntries(formData.entries());
+				payload.latitude = latitude;
+				payload.longitude = longitude;
+				const message = form.querySelector(".form-message");
+
+				try {
+					const response = await fetch("/events", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify(payload)
+					});
+					const result = await response.json();
+					if (!response.ok) throw new Error(result.error || "Could not save event");
+					message.textContent = "Event saved.";
+					addEventMarker([result.id, payload.event_name, payload.country, payload.city,
+						payload.time, payload.date, latitude, longitude]);
+					map.closePopup();
+				} catch (error) {
+					message.textContent = error.message;
+				}
+			});
+
+			L.popup().setLatLng(clickEvent.latlng).setContent(form).openOn(map);
+		});
+	</script>
+{% endblock %}

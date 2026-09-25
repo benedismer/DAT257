@@ -7,6 +7,10 @@ stack locally on their own computer.
 
 ---
 
+## Decisions
+
+* events will be deleted after a year from the database. BUT each account will have a field named no_of_events (or something like that) that will keep track of how active they have been. The same for the cities. 
+
 ## What you get
 
 Docker is broadly speaking made up out of images, containers and volumes. An image is the blueprint of
