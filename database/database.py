@@ -17,46 +17,46 @@ def get_db_connection():
     )
 
 
-def add_events(event_name, country, city, time, date, lattitude, longitude):
-    conn = get_db_connection()
-
-    with conn.cursor() as cur:
-        cur.execute(
-            "INSERT INTO events (event_name, country, city, time, date, latitude, longitude) VALUES (%s, %s, %s, %s, %s, %s, %s)", (event_name, country, city, time, date, lattitude, longitude))
- 
-    conn.commit # Make the changes to the database persistent
-    conn.close
+def add_events(event_name, country, city, event_time, event_date, latitude, longitude):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO events
+                    (event_name, country, city, time, date, latitude, longitude)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (event_name, country, city, event_time, event_date, latitude, longitude),
+            )
+            return cur.fetchone()[0]
 
 
 def get_events():
-    conn = get_db_connection()
-
-    with conn.cursor() as cur:
-        cur.execute("SELECT * FROM events")
-        events = cur.fetchall()
-        
-    conn.close
-    return events
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                  SELECT id, event_name, country, city,
+                      time::text AS time, date::text AS date,
+                      latitude, longitude
+                FROM events
+                ORDER BY date, time, id
+                """
+            )
+            return cur.fetchall()
 
 
 def delete_events(event_id):
-    conn = get_db_connection()
-
-    with conn.cursor() as cur:
-        cur.execute("DELETE FROM events WHERE id = %s", (event_id))
-
-    conn.commit
-    conn.close
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM events WHERE id = %s", (event_id,))
 
 def delete_old_events():
-    conn = get_db_connection()
     cutoff_date = date.today() - timedelta(days=365)
 
-    with conn.cursor() as cur:
-        cur.execute("DELETE FROM events WHERE date < %s", (cutoff_date,))
-        deleted_count = cur.rowcount
-
-    conn.commit()
-    conn.close()
-    return deleted_count
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM events WHERE date < %s", (cutoff_date,))
+            return cur.rowcount
     

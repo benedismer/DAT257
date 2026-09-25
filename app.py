@@ -7,10 +7,11 @@ environment variables (see .env.example). Nothing secret is hard-coded here.
 """
 
 import os
+from datetime import date, time
 
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 
-from event import create_sample_events
+from database.database import add_events, get_events
 
 # TODO for 1.1
 # To display List.html, import render_template and call it from a route.
@@ -30,14 +31,37 @@ app = Flask(__name__, template_folder="templates")
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", events=get_events())
 
 @app.route("/List")
 def event_list():
-    # render_template looks for List.html in the folder configured above.
-    # For now, `events` contains Python objects instead of database results.
-    events = create_sample_events()
-    return render_template("List.html", events=events)
+    return render_template("List.html", events=get_events())
+
+
+@app.post("/events")
+def create_event():
+    data = request.get_json(silent=True) or request.form
+    required_fields = ("event_name", "time", "date", "latitude", "longitude")
+    missing_fields = [field for field in required_fields if not str(data.get(field, "")).strip()]
+    if missing_fields:
+        return jsonify(error="Missing fields: " + ", ".join(missing_fields)), 400
+
+    try:
+        country = str(data.get("country", "")).strip() or None
+        city = str(data.get("city", "")).strip() or None
+        event_id = add_events(
+            data["event_name"].strip(),
+            country,
+            city,
+            time.fromisoformat(data["time"]),
+            date.fromisoformat(data["date"]),
+            float(data["latitude"]),
+            float(data["longitude"]),
+        )
+    except (TypeError, ValueError) as exc:
+        return jsonify(error=f"Invalid event data: {exc}"), 400
+
+    return jsonify(id=event_id), 201
 
 
 @app.route("/health")

@@ -2,11 +2,23 @@
 <html lang="en">
 
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Event map</title>
 
     <!-- loads Leaflet map -->
     <link rel="stylesheet"
           href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; }
+        h1 { margin: 24px; }
+        #map { height: 500px; }
+        .event-form { display: grid; gap: 8px; min-width: 220px; }
+        .event-form label { display: grid; gap: 3px; font-size: 12px; }
+        .event-form input { padding: 5px; }
+        .event-form button { padding: 7px; cursor: pointer; }
+        .form-message { margin: 0; font-size: 12px; }
+    </style>
 </head>
 
 <body>
@@ -29,18 +41,59 @@
             attribution: "&copy; OpenStreetMap"
     }).addTo(map);
 
-    // info about a test event
-    const testEvent = {
-        name: "Rubby event",
-        date: "27 September",
-        latitude: 57.7089,
-        longitude: 11.9746
-    };
+    const events = {{ events | default([]) | tojson }};
 
-    // add event as a marker on the map
-    L.marker([testEvent.latitude, testEvent.longitude])
-        .addTo(map)
-        .bindPopup(testEvent.name + "<br>" + testEvent.date);
+    function addEventMarker(event) {
+        L.marker([event[6], event[7]])
+            .addTo(map)
+            .bindPopup(`<strong>${event[1]}</strong><br>${event[5]} at ${event[4]}`);
+    }
+
+    events.forEach(addEventMarker);
+
+    map.on("click", (clickEvent) => {
+        const latitude = clickEvent.latlng.lat.toFixed(6);
+        const longitude = clickEvent.latlng.lng.toFixed(6);
+        const form = document.createElement("form");
+        form.className = "event-form";
+        form.innerHTML = `
+            <strong>Create event</strong>
+            <label>Name <input name="event_name" required></label>
+            <label>Country <input name="country"></label>
+            <label>City <input name="city"></label>
+            <label>Date <input name="date" type="date" required></label>
+            <label>Time <input name="time" type="time" required></label>
+            <button type="submit">Save event</button>
+            <p class="form-message" aria-live="polite"></p>
+        `;
+
+        form.addEventListener("submit", async (submitEvent) => {
+            submitEvent.preventDefault();
+            const formData = new FormData(form);
+            const payload = Object.fromEntries(formData.entries());
+            payload.latitude = latitude;
+            payload.longitude = longitude;
+            const message = form.querySelector(".form-message");
+
+            try {
+                const response = await fetch("/events", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || "Could not save event");
+                message.textContent = "Event saved.";
+                addEventMarker([result.id, payload.event_name, payload.country, payload.city,
+                    payload.time, payload.date, latitude, longitude]);
+                map.closePopup();
+            } catch (error) {
+                message.textContent = error.message;
+            }
+        });
+
+        L.popup().setLatLng(clickEvent.latlng).setContent(form).openOn(map);
+    });
 
      
     </script>

@@ -183,15 +183,15 @@
 
 		<section class="event-list" id="event-list" aria-live="polite">
 			{% for event in events | default([]) %}
-				<article class="event" data-search="{{ event.id }} {{ event.event_name }} {{ event.country }} {{ event.city }}">
-					<div class="event-id">#{{ event.id }}</div>
-					<h2 class="event-name">{{ event.event_name }}</h2>
+				<article class="event" data-search="{{ event[0] }} {{ event[1] }} {{ event[2] or '' }} {{ event[3] or '' }}">
+					<div class="event-id">#{{ event[0] }}</div>
+					<h2 class="event-name">{{ event[1] }}</h2>
 					<div class="event-location">
-						{{ event.city }}{% if event.city and event.country %}, {% endif %}{{ event.country }}
+						{{ event[3] or '' }}{% if event[3] and event[2] %}, {% endif %}{{ event[2] or '' }}
 					</div>
 					<div class="event-date">
-						{% if event.date %}{{ event.date }}{% endif %}
-						{% if event.time %}<br>{{ event.time }}{% endif %}
+						{% if event[5] %}{{ event[5] }}{% endif %}
+						{% if event[4] %}<br>{{ event[4] }}{% endif %}
 					</div>
 				</article>
 			{% else %}
