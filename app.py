@@ -1,11 +1,3 @@
-"""
-Flask application entrypoint.
-
-Kept intentionally simple (single-file) so teammates new to Flask can read it
-top-to-bottom. It builds on the basic example and adds a database connection to PostgreSQL, configured entirely through
-environment variables (see .env.example). Nothing secret is hard-coded here.
-"""
-
 import os
 import threading
 import time as time_module
@@ -15,19 +7,8 @@ from flask import Flask, jsonify, render_template, request
 
 from database.database import add_events, delete_old_events, get_events
 
-# TODO for 1.1
-# To display List.html, import render_template and call it from a route.
-# The template expects one variable named "events": a list of event objects.
-# Each event should have these names, matching database/schema.sql:
-# event.id, event.event_name, event.country, event.city, event.time, event.date
-# Example: render_template("List.html", events=events)
-
-# The database connection lives in the database package (database/database.py), so the
-# connection details are defined in exactly one place. Feature/CRUD functions
-# should also live in the database package and import get_db_connection there.
 from database.database import get_db_connection
 
-# Flask searches the templates/ directory relative to this application file.
 app = Flask(__name__, template_folder="templates")
 
 
@@ -112,11 +93,6 @@ def health():
 
 
 if __name__ == "__main__":
-    # Bind to 0.0.0.0 so the container port is reachable from the host.
-    # debug=True enables the auto-reloader, which pairs with the volume mount
-    # in docker-compose.yml to give live code reloading during development.
-    # The reloader starts a second process. Start the scheduler only there so
-    # development mode does not run two cleanup threads.
     if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
         start_cleanup_scheduler()
     app.run(host="0.0.0.0", port=5000, debug=True)
