@@ -30,7 +30,7 @@ app = Flask(__name__, template_folder="templates")
 
 @app.route("/")
 def index():
-    return "Hello, World!"
+    return render_template("index.html")
 
 @app.route("/List")
 def event_list():
