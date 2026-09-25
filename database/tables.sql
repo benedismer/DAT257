@@ -4,5 +4,7 @@ CREATE TABLE Events(
 	country TEXT,
     city TEXT,
 	time Time,
-    date DATE
+    date DATE,
+	latitude DOUBLE PRECISION,
+	longitude DOUBLE PRECISION
 );
