@@ -7,11 +7,13 @@ environment variables (see .env.example). Nothing secret is hard-coded here.
 """
 
 import os
+import threading
+import time as time_module
 from datetime import date, time
 
 from flask import Flask, jsonify, render_template, request
 
-from database.database import add_events, get_events
+from database.database import add_events, delete_old_events, get_events
 
 # TODO for 1.1
 # To display List.html, import render_template and call it from a route.
@@ -27,6 +29,25 @@ from database.database import get_db_connection
 
 # Flask searches the templates/ directory relative to this application file.
 app = Flask(__name__, template_folder="templates")
+
+
+def cleanup_old_events_daily():
+    while True:
+        try:
+            deleted_count = delete_old_events()
+            app.logger.info("Deleted %s old events", deleted_count)
+        except Exception:
+            app.logger.exception("Could not delete old events")
+        time_module.sleep(24 * 60 * 60)
+
+
+def start_cleanup_scheduler():
+    cleanup_thread = threading.Thread(
+        target=cleanup_old_events_daily,
+        name="old-event-cleanup",
+        daemon=True,
+    )
+    cleanup_thread.start()
 
 
 @app.route("/")
@@ -94,4 +115,8 @@ if __name__ == "__main__":
     # Bind to 0.0.0.0 so the container port is reachable from the host.
     # debug=True enables the auto-reloader, which pairs with the volume mount
     # in docker-compose.yml to give live code reloading during development.
+    # The reloader starts a second process. Start the scheduler only there so
+    # development mode does not run two cleanup threads.
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        start_cleanup_scheduler()
     app.run(host="0.0.0.0", port=5000, debug=True)
