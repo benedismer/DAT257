@@ -13,13 +13,20 @@ class UserInfo:
     username: str
     friends_list: list[str] = field(default_factory=list)
     events_attending: list[Event] = field(default_factory=list)
+    events_created: list[Event] = field(default_factory=list)
 
 
-def add_user_info(username, friends_list=None, events_attending=None):
+def add_user_info(
+    username,
+    friends_list=None,
+    events_attending=None,
+    events_created=None,
+):
     """Create an in-memory user info object without inserting anything into PostgreSQL."""
     return UserInfo(
         id=0,
         username=username,
         friends_list=list(friends_list or []),
         events_attending=list(events_attending or []),
+        events_created=list(events_created or []),
     )

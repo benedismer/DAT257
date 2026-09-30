@@ -6,6 +6,8 @@ from datetime import date, time
 from flask import Flask, jsonify, render_template, request
 
 from database.database import add_events, delete_old_events, get_events
+from demo_data import DEMO_USER
+from event import event_to_row
 
 from database.database import get_db_connection
 
@@ -38,6 +40,48 @@ def index():
 @app.route("/List")
 def event_list():
     return render_template("List.html", events=get_events())
+
+
+@app.route("/my-events")
+def my_events():
+    """Show today's and future events signed up for by the dummy account."""
+    events = [
+        event_to_row(event)
+        for event in DEMO_USER.events_attending
+        if event.date >= date.today()
+    ]
+    return render_template("List.html", events=events)
+
+
+@app.route("/organizer-events")
+def organizer_events():
+    """Show future events from organizers followed by the dummy account."""
+    from demo_data import DEMO_ORGANIZER_EVENTS
+
+    subscribed = set(DEMO_USER.friends_list)
+    events = [
+        event_to_row(event)
+        for event in DEMO_ORGANIZER_EVENTS
+        if event.organizer in subscribed and event.date >= date.today()
+    ]
+    return render_template("List.html", events=events)
+
+
+@app.route("/past-events")
+def past_events():
+    """Show events the dummy account attended before today."""
+    events = [
+        event_to_row(event)
+        for event in DEMO_USER.events_attending
+        if event.date < date.today()
+    ]
+    return render_template("List.html", events=events)
+
+
+@app.route("/created-events")
+def created_events():
+    """Show events created by the dummy account."""
+    return render_template("CreatedEvents.html", events=DEMO_USER.events_created)
 
 
 @app.post("/events")

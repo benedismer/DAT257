@@ -33,3 +33,17 @@ def add_events(event_name, country, city, time, date, organizer="", attendees=No
         organizer=organizer,
         attendees=list(attendees or []),
     )
+
+
+def event_to_row(event):
+    """Convert an in-memory event to the row shape used by List.html."""
+    return (
+        event.id,
+        event.event_name,
+        event.country,
+        event.city,
+        event.time.isoformat(timespec="minutes"),
+        event.date.isoformat(),
+        None,
+        None,
+    )
