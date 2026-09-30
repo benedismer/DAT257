@@ -1,7 +1,7 @@
 """In-memory event model and sample data for previewing the events page."""
 
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date as Date
 from datetime import time as Time
 
@@ -16,6 +16,8 @@ class Event:
     city: str
     time: Time
     date: Date
+    organizer: str = ""
+    attendees: list[str] = field(default_factory=list)
 
 
 def add_events(event_name, country, city, time, date):

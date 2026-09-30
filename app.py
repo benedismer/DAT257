@@ -2,11 +2,19 @@ import os
 import threading
 import time as time_module
 from datetime import date, time
+from demo_data import DEMO_USER
 
-from flask import Flask, jsonify, render_template, request
+from flask import (
+    Flask,
+    abort,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 
 from database.database import add_events, delete_old_events, get_events
-
 from database.database import get_db_connection
 
 app = Flask(__name__, template_folder="templates")
@@ -38,6 +46,31 @@ def index():
 @app.route("/List")
 def event_list():
     return render_template("List.html", events=get_events())
+
+@app.route("/profile")
+def organizer_profile():
+    return render_template(
+        "Profile.html",
+        user=DEMO_USER, #brutforce for now
+        events=get_events(),
+        # The redirect flag controls the confirmation message in Profile.html.
+        subscribed=request.args.get("subscribed") == "1",
+    )
+
+@app.route("/profile/<int:user_id>/subscribe", methods=["POST"])
+def subscribe(user_id):
+    if user_id != DEMO_USER.id:
+        abort(404)
+
+    # Demo-only state
+    if "current_user" not in DEMO_USER.friends_list:
+        DEMO_USER.friends_list.append("current_user")
+
+    # Here, add_friendlist or add_subscription sort of function will be called from database
+    # Placeholder
+
+    # Redirect to organizer_profile():
+    return redirect(url_for("organizer_profile", subscribed="1"))
 
 
 @app.post("/events")
