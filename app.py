@@ -2,14 +2,34 @@ import os
 import threading
 import time as time_module
 from datetime import date, time
+import psycopg
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, session, redirect, url_for
 
-from database.database import add_events, delete_old_events, get_events
-
-from database.database import get_db_connection
+from database.database import add_events, delete_old_events, get_events, signup_for_account, login_to_account, get_username_by_id, get_db_connection, change_password
 
 app = Flask(__name__, template_folder="templates")
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me") # login session
+
+
+@app.context_processor
+def inject_current_username():
+    """Runs before every template render and makes `current_username`
+    available in ALL templates (so base.html's banner works everywhere
+    without each route passing it in).
+
+    Reads the logged-in user's id from the session and looks up their name.
+    Returns None when nobody is logged in, or if the lookup fails (e.g. the
+    database is unreachable) so a DB hiccup never breaks page rendering.
+    """
+    username = None
+    user_id = session.get("user_id")
+    if user_id is not None:
+        try:
+            username = get_username_by_id(user_id)
+        except Exception:
+            username = None
+    return {"current_username": username}
 
 
 def cleanup_old_events_daily():
@@ -39,6 +59,54 @@ def index():
 def event_list():
     return render_template("List.html", events=get_events())
 
+@app.route("/login", methods=['GET', 'POST'])
+def login():
+    # GET -> just render page
+    if request.method == "GET": 
+        return render_template("login.html")
+    # POST -> login button or sign up button has been pressed
+    data = request.get_json(silent=True) or request.form
+    required_fields = ("username", "password", "action")
+    missing_fields = [field for field in required_fields if not str(data.get(field, "")).strip()]
+    if missing_fields:
+        return jsonify(error="Missing fields: " + ", ".join(missing_fields)), 400
+    try:
+        username = str(data.get("username", "")).strip() 
+        password = str(data.get("password", "")) 
+        action = str(data.get("action", "")).strip()
+        if action == "login":
+            account_id = login_to_account(username, password)
+        elif action == "signup":
+            account_id = signup_for_account(username, password)
+            if account_id:
+                account_id = login_to_account(username, password)
+        elif action == "change_pw":
+            if username == get_username_by_id(session.get("user_id")):
+                account_id = change_password(username, password)    
+            else:
+                return render_template("unsuccessful_pw_change.html")
+        else:
+            return jsonify(error="Invalid action"), 400
+        if account_id: # successful login
+            session["user_id"] = account_id          # remembers the user
+            if action == "login":
+                return render_template("successful_login.html")
+            if action == "signup":
+                return render_template("successful_signup.html")
+            if action == "change_pw":
+                return render_template("successful_pw_change.html")
+    except (psycopg.Error) as exc:
+        return jsonify(error=f"Invalid login data: {exc}"), 401
+
+    return render_template("login.html") # FIX: is this correct?
+
+@app.route("/logout")
+def logout():
+    # Remove the logged-in user's id from the session. pop(..., None) avoids a
+    # KeyError if they weren't logged in. After this the banner shows "guest".
+    session.pop("user_id", None)
+    # Send them back to the home page.
+    return redirect(url_for("index"))
 
 @app.post("/events")
 def create_event():
@@ -47,7 +115,9 @@ def create_event():
     missing_fields = [field for field in required_fields if not str(data.get(field, "")).strip()]
     if missing_fields:
         return jsonify(error="Missing fields: " + ", ".join(missing_fields)), 400
-
+    if get_username_by_id(session.get("user_id")) == None:
+        # u r only allowed to create an event if you are logged in
+        return jsonify(error="You must be logged in to create an event."), 401
     try:
         country = str(data.get("country", "")).strip() or None
         city = str(data.get("city", "")).strip() or None
