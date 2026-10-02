@@ -65,7 +65,7 @@ def signup_for_account(username, password):
             try:
                 cur.execute(
                     """
-                    INSERT INTO Accounts (username, password_hash, isAdmin)
+                    INSERT INTO Accounts (username, password_hash, isOrganiser)
                     VALUES (%s, %s, %s)
                     RETURNING id
                     """,
