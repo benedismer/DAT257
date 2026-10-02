@@ -142,11 +142,15 @@
 		}).addTo(map);
 
 		const events = {{ events | default([]) | tojson }};
+		const attendingEventIds = new Set({{ attending_event_ids | default([]) | list | tojson }});
 
 		function addEventMarker(event) {
+			const attendanceMessage = attendingEventIds.has(event[0])
+				? "<br><strong>You are attending this event.</strong>"
+				: "";
 			L.marker([event[6], event[7]])
 				.addTo(map)
-				.bindPopup(`<strong>${event[1]}</strong><br>${event[5]} at ${event[4]}`);
+				.bindPopup(`<strong>${event[1]}</strong><br>${event[5]} at ${event[4]}${attendanceMessage}`);
 		}
 
 		events.forEach(addEventMarker);
