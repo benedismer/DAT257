@@ -5,7 +5,7 @@ from datetime import date, time
 
 from flask import Flask, jsonify, render_template, request
 
-from database.database import add_events, delete_old_events, get_events
+from database.database import add_events, delete_old_events, get_events, add_subscription
 
 from database.database import get_db_connection
 
@@ -64,6 +64,18 @@ def create_event():
         return jsonify(error=f"Invalid event data: {exc}"), 400
 
     return jsonify(id=event_id), 201
+
+
+@app.post("/subscribe")
+def subscribe():
+    data = request.get_json(silent=True) or request.form
+
+    subscriber_id = data["subscriber_id"]
+    organizer_id = data["organizer_id"]
+
+    add_subscription(subscriber_id, organizer_id)
+
+    return jsonify(message="Subscribed"), 201
 
 
 @app.route("/health")

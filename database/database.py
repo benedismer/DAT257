@@ -60,3 +60,14 @@ def delete_old_events():
             cur.execute("DELETE FROM events WHERE date < %s", (cutoff_date,))
             return cur.rowcount
     
+
+def add_subscription(subscriber_id, organizer_id):  # save a new subscription
+    with get_db_connection() as conn:               # connect to db
+        with conn.cursor() as cur:                  # run SQL in db
+            cur.execute(
+                """
+                INSERT INTO subscriptions (subscriber_id, organizer_id)
+                VALUES (%s, %s)
+                """,
+                (subscriber_id, organizer_id),
+            )
