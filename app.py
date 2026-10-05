@@ -10,6 +10,7 @@ from database.database import (
     add_events,
     attend_event,
     change_password,
+    create_team,
     delete_event,
     delete_old_events,
     get_db_connection,
@@ -165,7 +166,7 @@ def edit_event(event_id):
         return jsonify(error="Invalid event data."), 400
 
     if event_id is None:
-        return jsonify(error="Event not found or you are not its organizer."), 404
+        return jsonify(error="Event not found or you are not its Team."), 404
     return jsonify(id=event_id), 200
 
 
@@ -175,7 +176,7 @@ def remove_event(event_id):
     if username is None:
         return jsonify(error="You must be logged in to delete an event."), 401
     if not delete_event(event_id, username):
-        return jsonify(error="Event not found or you are not its organizer."), 404
+        return jsonify(error="Event not found or you are not its Team."), 404
     return jsonify(deleted=True), 200
 
 
@@ -248,25 +249,72 @@ def login():
             account_id = signup_for_account(username, password)
             if account_id:
                 account_id = login_to_account(username, password)
-        elif action == "change_pw":
-            if username == get_username_by_id(session.get("user_id")):
-                account_id = change_password(username, password)    
-            else:
-                return render_template("unsuccessful_pw_change.html")
         else:
             return jsonify(error="Invalid action"), 400
-        if account_id: # successful login
-            session["user_id"] = account_id          # remembers the user
+        if account_id:
+            session["user_id"] = account_id
             if action == "login":
-                return render_template("successful_login.html")
+                return render_template(
+                    "login.html",
+                    message="You successfully logged in. Welcome back!",
+                    message_type="success",
+                )
             if action == "signup":
-                return render_template("successful_signup.html")
-            if action == "change_pw":
-                return render_template("successful_pw_change.html")
+                return render_template(
+                    "login.html",
+                    message="Account created! Welcome to Rubby.",
+                    message_type="success",
+                )
+        else:
+            if action == "login":
+                return render_template(
+                    "login.html",
+                    message="Incorrect username or password. Please try again.",
+                    message_type="error",
+                )
+            if action == "signup":
+                return render_template(
+                    "login.html",
+                    message="That username is already taken. Please choose another.",
+                    message_type="error",
+                )
     except (psycopg.Error) as exc:
-        return jsonify(error=f"Invalid login data: {exc}"), 401
+        return render_template(
+            "login.html",
+            message=f"Something went wrong: {exc}",
+            message_type="error",
+        )
 
-    return render_template("login.html") # FIX: is this correct?
+    return render_template("login.html")
+
+@app.post("/create-team")
+def create_team_route():
+    user_id = session.get("user_id")
+    if user_id is None:
+        return jsonify(error="You must be logged in to create a team."), 401
+
+    data = request.get_json(silent=True) or request.form
+    team_name = str(data.get("team_name", "")).strip()
+    if not team_name:
+        return jsonify(error="Team name is required."), 400
+
+    city = str(data.get("city", "")).strip() or None
+    country = str(data.get("country", "")).strip() or None
+
+    team_id = create_team(user_id, team_name, city, country)
+    if team_id is None:
+        return render_template(
+            "login.html",
+            message="Your account already has a team.",
+            message_type="error",
+        )
+
+    return render_template(
+        "login.html",
+        message=f'Team "{team_name}" created! Your account is now the admin.',
+        message_type="success",
+    )
+
 
 @app.route("/logout")
 def logout():
@@ -274,7 +322,7 @@ def logout():
     # KeyError if they weren't logged in. After this the banner shows "guest".
     session.pop("user_id", None)
     # Send them back to the home page.
-    return redirect(url_for("index"))
+    return redirect(url_for("login"))
 
 @app.post("/events")
 def create_event():
@@ -303,7 +351,6 @@ def create_event():
         return jsonify(error=f"Invalid event data: {exc}"), 400
 
     return jsonify(id=event_id), 201
-
 
 @app.route("/health")
 def health():

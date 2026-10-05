@@ -2,11 +2,9 @@ import os
 from datetime import date, timedelta
 
 import psycopg
+from werkzeug.security import generate_password_hash, check_password_hash
 # Psycopg is the most popular PostgreSQL database adapter for Python
 # https://www.psycopg.org/psycopg3/docs/basic/usage.html for method usages
-
-from werkzeug.security import generate_password_hash, check_password_hash
-
 
 def get_db_connection():
     return psycopg.connect(
@@ -16,6 +14,8 @@ def get_db_connection():
         user=os.getenv("POSTGRES_USER", "postgres"),
         password=os.getenv("POSTGRES_PASSWORD", "Your_Postgres_Password"),
     )
+
+
 
 def add_events(event_name, country, city, event_time, event_date, latitude, longitude, username):
     with get_db_connection() as conn:
@@ -63,9 +63,9 @@ def get_events(
             if subscriber_id is not None:
                 subscription_join = (
                     "JOIN Subscriptions s ON "
-                    "s.user_from_which_the_other_user_is_subscribed_to = a.id"
+                    "s.team_id = a.id"
                 )
-                conditions.append("s.user_subscribed = %s")
+                conditions.append("s.subscriber_id = %s")
                 parameters.append(subscriber_id)
             if past_attending and attending_username is not None:
                 conditions.append(
@@ -239,19 +239,19 @@ def delete_event(event_id, username):
             return row is not None
 
 
-def subscribe_to_user(subscriber_id, user_id):
+def subscribe_to_user(subscriber_id, team_id):
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO Subscriptions
-                    (user_subscribed, user_from_which_the_other_user_is_subscribed_to)
+                    (subscriber_id, team_id)
                 SELECT %s, id FROM Accounts
                 WHERE id = %s AND id <> %s
                 ON CONFLICT DO NOTHING
                 RETURNING id
                 """,
-                (subscriber_id, user_id, subscriber_id),
+                (subscriber_id, team_id, subscriber_id),
             )
             return cur.fetchone() is not None
 
@@ -264,11 +264,7 @@ def get_users(search=None, subscriber_id=None):
 
     if subscriber_id is not None:
         conditions.append("a.id <> %s")
-        subscription_join = (
-            "LEFT JOIN Subscriptions s ON "
-            "s.user_from_which_the_other_user_is_subscribed_to = a.id "
-            "AND s.user_subscribed = %s"
-        )
+        subscription_join = "LEFT JOIN Subscriptions s ON s.team_id = a.id AND s.subscriber_id = %s"
         parameters.extend([subscriber_id, subscriber_id])
     if search:
         conditions.append("a.username ILIKE %s")
@@ -292,16 +288,16 @@ def get_users(search=None, subscriber_id=None):
             return cur.fetchall()
 
 
-def unsubscribe_from_user(subscriber_id, user_id):
+def unsubscribe_from_user(subscriber_id, team_id):
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                                 DELETE FROM Subscriptions
-                                WHERE user_subscribed = %s
-                                    AND user_from_which_the_other_user_is_subscribed_to = %s
+                                WHERE subscriber_id = %s
+                                    AND team_id = %s
                 """,
-                                (subscriber_id, user_id),
+                                (subscriber_id, team_id),
             )
             return cur.rowcount > 0
 
@@ -341,7 +337,7 @@ def signup_for_account(username, password):
             try:
                 cur.execute(
                     """
-                    INSERT INTO Accounts (username, password_hash, isOrganiser)
+                    INSERT INTO Accounts (username, password_hash, isTeam)
                     VALUES (%s, %s, %s)
                     RETURNING id
                     """,
@@ -390,6 +386,33 @@ def change_password(username, password):
 
 
 
+def create_team(admin_id, team_name, city, country):
+    """Create a team for an account and mark the account as isTeam=TRUE.
+
+    Returns the new team id on success, or None if the account already has a
+    team (UNIQUE constraint on admin_id) or the account doesn't exist.
+    """
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO Teams (admin_id, name, city, country)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id
+                    """,
+                    (admin_id, team_name, city or None, country or None),
+                )
+                team_id = cur.fetchone()[0]
+                cur.execute(
+                    "UPDATE Accounts SET isTeam = TRUE WHERE id = %s",
+                    (admin_id,),
+                )
+                return team_id
+            except psycopg.errors.UniqueViolation:
+                return None  # account already owns a team
+
+
 def get_username_by_id(account_id):
     """Look up a username from an account id (used to show who is logged in).
 
@@ -405,4 +428,3 @@ def get_username_by_id(account_id):
     if row is None:
         return None
     return row[0]
-

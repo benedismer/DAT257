@@ -1,8 +1,9 @@
+
 CREATE TABLE Accounts (
 	id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 	username TEXT UNIQUE NOT NULL,
 	password_hash TEXT NOT NULL,
-	isOrganiser BOOLEAN NOT NULL DEFAULT FALSE
+	isTeam BOOLEAN NOT NULL DEFAULT FALSE -- account type: user/team
 );
 
 CREATE TABLE Events(
@@ -17,12 +18,12 @@ CREATE TABLE Events(
 	username TEXT NOT NULL REFERENCES Accounts(username) ON DELETE CASCADE
 );
 
-CREATE TABLE Subscriptions (
-	id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-	user_subscribed INTEGER NOT NULL REFERENCES Accounts(id) ON DELETE CASCADE,
-	user_from_which_the_other_user_is_subscribed_to INTEGER NOT NULL REFERENCES Accounts(id) ON DELETE CASCADE,
-	UNIQUE (user_subscribed, user_from_which_the_other_user_is_subscribed_to),
-	CHECK (user_subscribed <> user_from_which_the_other_user_is_subscribed_to)
+CREATE TABLE Subscriptions(
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    subscriber_id INTEGER,									-- subscriber
+    team_id INTEGER,									-- account that gets subscription
+	UNIQUE (subscriber_id, team_id),
+	CHECK (subscriber_id <> team_id)
 );
 
 CREATE TABLE EventAttendance (
@@ -30,4 +31,12 @@ CREATE TABLE EventAttendance (
 	eventid INTEGER NOT NULL REFERENCES Events(id) ON DELETE CASCADE,
 	username TEXT NOT NULL REFERENCES Accounts(username) ON DELETE CASCADE,
 	UNIQUE (eventid, username)
+);
+
+CREATE TABLE Teams (
+	id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	admin_id INTEGER NOT NULL UNIQUE REFERENCES Accounts(id) ON DELETE CASCADE,
+	name TEXT NOT NULL,
+	city TEXT,
+	country TEXT
 );
