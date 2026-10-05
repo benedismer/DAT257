@@ -31,6 +31,35 @@
 			color: var(--text-muted);
 		}
 
+		.event-views {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 6px;
+			margin-top: 18px;
+		}
+
+		.event-views a {
+			padding: 7px 10px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			color: var(--text-muted);
+			font-size: 0.78rem;
+			text-decoration: none;
+			transition: background 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out;
+		}
+
+		.event-views a:hover,
+		.event-views a[aria-current="page"] {
+			border-color: var(--accent);
+			background: var(--accent-light);
+			color: var(--accent-hover);
+		}
+
+		.event-views a[aria-current="page"] {
+			font-weight: 600;
+		}
+
 		/* label uses monospace metadata style (design.md §4) */
 		.search-label {
 			display: grid;
@@ -58,6 +87,25 @@
 			box-shadow: 0 0 0 2px var(--accent-light);
 		}
 
+		.sort-label {
+			display: grid;
+			gap: 6px;
+			font-family: var(--font-mono);
+			font-size: 0.72rem;
+			letter-spacing: 0.04em;
+			text-transform: uppercase;
+			color: var(--text-muted);
+		}
+
+		.sort {
+			padding: 9px 12px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			color: var(--text);
+			font: 0.9rem var(--font-ui);
+		}
+
 		/* card treatment: a single visible border, no shadow (§6) */
 		.event-list {
 			display: block;
@@ -69,7 +117,7 @@
 
 		.event {
 			display: grid;
-			grid-template-columns: auto minmax(160px, 1.4fr) 1fr auto;
+			grid-template-columns: auto minmax(160px, 1.4fr) 1fr auto auto;
 			align-items: center;
 			gap: 20px;
 			padding: 18px 22px;
@@ -107,6 +155,21 @@
 			line-height: 1.5;
 		}
 
+		.event-action {
+			padding: 8px 10px;
+			border: 1px solid var(--accent);
+			border-radius: var(--radius);
+			background: var(--accent);
+			color: #fff;
+			font: 600 0.78rem var(--font-ui);
+			cursor: pointer;
+		}
+
+		.event-action.leave {
+			background: var(--surface);
+			color: var(--accent);
+		}
+
 		.empty-state {
 			padding: 28px 22px;
 			border: 1px dashed var(--border);
@@ -135,13 +198,35 @@
 		<section class="list-head" aria-labelledby="page-title">
 			<div>
 				<h2 id="page-title">Events</h2>
-				<p>Everything currently stored, soonest first.</p>
+				<p>Check out upcoming events and events from the past year!</p>
+				<nav class="event-views" aria-label="Event views">
+					<a href="{{ url_for('event_list') }}"
+					   {% if not attending_only and not past_attending and not subscribed_only %}aria-current="page"{% endif %}>All events</a>
+					{% if current_username %}
+						<a href="{{ url_for('event_list', view='attending') }}"
+						   {% if attending_only %}aria-current="page"{% endif %}>Attending</a>
+						<a href="{{ url_for('event_list', view='past-attending') }}"
+						   {% if past_attending %}aria-current="page"{% endif %}>Past attended</a>
+						<a href="{{ url_for('event_list', view='subscribed') }}"
+						   {% if subscribed_only %}aria-current="page"{% endif %}>Subscribed organizers</a>
+					{% endif %}
+				</nav>
 			</div>
-			<label class="search-label">
-				Search
-				<input class="search" id="event-search" type="search"
-					   placeholder="Search events..." aria-label="Search events">
-			</label>
+			<div>
+				<label class="search-label">
+					Search
+					<input class="search" id="event-search" type="search"
+						   placeholder="Search events..." aria-label="Search events">
+				</label>
+				<label class="sort-label">
+					Sort by
+					<select class="sort" id="event-sort" aria-label="Sort events">
+						{% for value, label in sort_options.items() %}
+							<option value="{{ value }}"{% if value == sort_by %} selected{% endif %}>{{ label }}</option>
+						{% endfor %}
+					</select>
+				</label>
+			</div>
 		</section>
 
 		<section class="event-list" id="event-list" aria-live="polite">
@@ -157,6 +242,13 @@
 						{% if event[5] %}{{ event[5] }}{% endif %}
 						{% if event[4] %}<br>{{ event[4] }}{% endif %}
 					</div>
+					{% if current_username %}
+						<button class="event-action{% if event[0] in attending_event_ids %} leave{% endif %}"
+								type="button" data-event-id="{{ event[0] }}"
+								data-attending="{{ 'true' if event[0] in attending_event_ids else 'false' }}">
+							{{ 'Leave' if event[0] in attending_event_ids else 'Attend' }}
+						</button>
+					{% endif %}
 				</article>
 			{% else %}
 				<p class="empty-state">No events were found.</p>
@@ -168,7 +260,30 @@
 {% block scripts %}
 	<script>
 		const searchInput = document.querySelector("#event-search");
+		const sortInput = document.querySelector("#event-sort");
 		const eventItems = document.querySelectorAll(".event");
+		document.querySelectorAll(".event-action").forEach((button) => {
+			button.addEventListener("click", async () => {
+				const attending = button.dataset.attending === "true";
+				const response = await fetch(`/events/${button.dataset.eventId}/attendance`, {
+					method: attending ? "DELETE" : "POST"
+				});
+				if (response.status === 401) {
+					window.location.href = "{{ url_for('login') }}";
+					return;
+				}
+				if (!response.ok) return;
+				button.dataset.attending = String(!attending);
+				button.textContent = attending ? "Attend" : "Leave";
+				button.classList.toggle("leave", !attending);
+			});
+		});
+
+		sortInput.addEventListener("change", (event) => {
+			const url = new URL(window.location.href);
+			url.searchParams.set("sort", event.target.value);
+			window.location.href = url;
+		});
 
 		searchInput.addEventListener("input", (event) => {
 			const query = event.target.value.trim().toLowerCase();

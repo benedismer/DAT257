@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% set active_page = 'users' %}
+
+{% block title %}Users{% endblock %}
+
+{% block styles %}
+		.page {
+			width: min(760px, calc(100% - 32px));
+			margin: 0 auto;
+			padding: 40px 0 72px;
+		}
+
+		.page-head {
+			display: flex;
+			align-items: end;
+			justify-content: space-between;
+			gap: 20px;
+			margin-bottom: 28px;
+		}
+
+		.page-head h2 { margin: 0 0 6px; font-size: 1.6rem; font-weight: 600; }
+		.page-head p { margin: 0; color: var(--text-muted); }
+
+		.search-form { display: flex; gap: 8px; }
+		.search {
+			width: min(100%, 260px);
+			padding: 9px 12px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			color: var(--text);
+			font: 0.9rem var(--font-ui);
+		}
+		.search-form button, .user-action {
+			padding: 9px 12px;
+			border: 1px solid var(--accent);
+			border-radius: var(--radius);
+			background: var(--accent);
+			color: #fff;
+			font: 600 0.85rem var(--font-ui);
+			cursor: pointer;
+		}
+		.search-form button:hover, .user-action:hover { background: var(--accent-hover); }
+		.user-action.unsubscribe { background: var(--surface); color: var(--accent); }
+
+		.user-list {
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			overflow: hidden;
+		}
+		.user-row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 16px;
+			padding: 16px 20px;
+		}
+		.user-row + .user-row { border-top: 1px dashed var(--border); }
+		.username { font-weight: 600; }
+		.empty-state { padding: 24px 20px; color: var(--text-muted); }
+		@media (max-width: 640px) {
+			.page-head { display: block; }
+			.search-form { margin-top: 20px; }
+			.search { flex: 1; width: auto; }
+		}
+{% endblock %}
+
+{% block content %}
+	<div class="page">
+		<section class="page-head" aria-labelledby="page-title">
+			<div>
+				<h2 id="page-title">Users</h2>
+				<p>Find users and follow the events they create.</p>
+			</div>
+			<form class="search-form" method="get" action="{{ url_for('user_list') }}">
+				<input class="search" name="q" type="search" value="{{ search }}"
+					   placeholder="Search users..." aria-label="Search users">
+				<button type="submit">Search</button>
+			</form>
+		</section>
+
+		<section class="user-list" aria-live="polite">
+			{% for user in users %}
+				<article class="user-row" data-user-id="{{ user[0] }}">
+					<span class="username">{{ user[1] }}</span>
+					<button class="user-action{% if user[2] %} unsubscribe{% endif %}"
+							type="button" data-subscribed="{{ 'true' if user[2] else 'false' }}">
+						{{ 'Unsubscribe' if user[2] else 'Subscribe' }}
+					</button>
+				</article>
+			{% else %}
+				<div class="empty-state">No users were found.</div>
+			{% endfor %}
+		</section>
+	</div>
+{% endblock %}
+
+{% block scripts %}
+	<script>
+		document.querySelectorAll(".user-action").forEach((button) => {
+			button.addEventListener("click", async () => {
+				const row = button.closest(".user-row");
+				const subscribed = button.dataset.subscribed === "true";
+				const response = await fetch(`/subscriptions/${row.dataset.userId}`, {
+					method: subscribed ? "DELETE" : "POST"
+				});
+				if (response.status === 401) {
+					window.location.href = "{{ url_for('login') }}";
+					return;
+				}
+				if (!response.ok) return;
+				button.dataset.subscribed = String(!subscribed);
+				button.textContent = subscribed ? "Subscribe" : "Unsubscribe";
+				button.classList.toggle("unsubscribe", !subscribed);
+			});
+		});
+	</script>
+{% endblock %}
