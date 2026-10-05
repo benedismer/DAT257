@@ -2,6 +2,7 @@
 
 import random
 from dataclasses import dataclass
+from dataclasses import field
 from datetime import date as Date
 from datetime import time as Time
 
@@ -16,9 +17,11 @@ class Event:
     city: str
     time: Time
     date: Date
+    organizer: str = ""
+    attendees: list[str] = field(default_factory=list)
 
 
-def add_events(event_name, country, city, time, date):
+def add_events(event_name, country, city, time, date, organizer="", attendees=None):
     """Create an in-memory event without inserting anything into PostgreSQL."""
     return Event(
         id=0,
@@ -27,4 +30,20 @@ def add_events(event_name, country, city, time, date):
         city=city,
         time=time,
         date=date,
+        organizer=organizer,
+        attendees=list(attendees or []),
+    )
+
+
+def event_to_row(event):
+    """Convert an in-memory event to the row shape used by List.html."""
+    return (
+        event.id,
+        event.event_name,
+        event.country,
+        event.city,
+        event.time.isoformat(timespec="minutes"),
+        event.date.isoformat(),
+        None,
+        None,
     )
