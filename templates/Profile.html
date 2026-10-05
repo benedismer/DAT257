@@ -25,10 +25,43 @@
 			font-weight: 600;
 		}
 
+		.list-head h2.bio-title {
+			font-size: 1.1rem;
+		}
+
 		.list-head p {
 			margin: 0;
 			max-width: 52ch;
 			color: var(--text-muted);
+		}
+
+		.bio-form {
+			display: grid;
+			gap: 10px;
+			max-width: 52ch;
+		}
+
+		.bio-form textarea {
+			width: 100%;
+			min-height: 120px;
+			padding: 10px 12px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			color: var(--text);
+			font: 0.9rem var(--font-ui);
+			resize: vertical;
+		}
+
+		.bio-form button {
+			justify-self: start;
+			padding: 9px 12px;
+			border: 1px solid var(--accent);
+			border-radius: var(--radius);
+			background: var(--accent);
+			color: #fff;
+			font: 600 0.85rem var(--font-ui);
+			cursor: pointer;
 		}
 
 		/* label uses monospace metadata style (design.md §4) */
@@ -136,17 +169,14 @@
         <div>
             <h2 id="page-title">{{ user.username }}'s Profile</h2>
 
-            <p>User ID: {{ user.id }}</p>
-
-            <form
-                action="{{ url_for('subscribe', user_id=user.id) }}"
-                method="POST"
-            >
-                <button type="submit">Subscribe!</button>
+			<h2 id="bio-title" class="bio-title">Bio</h2>
+            <form class="bio-form" method="post" action="{{ url_for('organizer_profile') }}">
+            <label for="bio">Introduce yourself (up to 500 characters)</label>
+            <textarea id="bio" name="bio" maxlength="500">{{ bio }}</textarea>
+            {% if bio_error %}<p role="alert">{{ bio_error }}</p>{% endif %}
+            <button type="submit">Save bio</button>
             </form>
-			{% if subscribed %}
-				<p role="status">Subscribed!</p> 
-			{% endif %}
+            {% if bio_saved %}<p role="status">Bio saved.</p>{% endif %}
         </div>
     </section>
 </div>

@@ -3,6 +3,7 @@ import threading
 import time as time_module
 from datetime import date, time
 import psycopg
+from user_info import UserInfo
 
 from flask import Flask, jsonify, render_template, request, session, redirect, url_for
 
@@ -15,6 +16,7 @@ from database.database import (
     get_db_connection,
     get_events,
     get_attending_event_ids,
+    get_bio_by_id,
     get_created_events_with_attendees,
     get_users,
     get_username_by_id,
@@ -23,6 +25,7 @@ from database.database import (
     stop_attending_event,
     subscribe_to_user,
     update_event,
+    update_bio,
     unsubscribe_from_user,
 )
 
@@ -79,30 +82,35 @@ def index():
         attending_event_ids=attending_event_ids,
     )
 
-@app.route("/profile")
+@app.route("/profile", methods=["GET", "POST"])
 def organizer_profile():
+    user_id = session.get("user_id")
+    if user_id is None:
+        return redirect(url_for("login"))
+
+    username = get_username_by_id(user_id)
+    if username is None:
+        session.pop("user_id", None)
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        bio = request.form.get("bio", "")
+        if len(bio) > 500:
+            return render_template(
+                "Profile.html",
+                user=UserInfo(id=user_id, username=username),
+                bio=bio,
+                bio_error="Your bio must be 500 characters or fewer.",
+            ), 400
+        update_bio(user_id, bio.strip())
+        return redirect(url_for("organizer_profile", saved="1"))
+
     return render_template(
         "Profile.html",
-        user=DEMO_USER, #brutforce for now
-        events=get_events(),
-        # The redirect flag controls the confirmation message in Profile.html.
-        subscribed=request.args.get("subscribed") == "1",
+        user=UserInfo(id=user_id, username=username),
+        bio=get_bio_by_id(user_id) or "",
+        bio_saved=request.args.get("saved") == "1",
     )
-
-@app.route("/profile/<int:user_id>/subscribe", methods=["POST"])
-def subscribe(user_id):
-    if user_id != DEMO_USER.id:
-        abort(404)
-
-    # Demo-only state
-    if "current_user" not in DEMO_USER.friends_list:
-        DEMO_USER.friends_list.append("current_user")
-
-    # Here, add_friendlist or add_subscription sort of function will be called from database
-    # Placeholder
-
-    # Redirect to organizer_profile():
-    return redirect(url_for("organizer_profile", subscribed="1"))
     
 
 @app.route("/List")

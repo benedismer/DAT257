@@ -406,3 +406,22 @@ def get_username_by_id(account_id):
         return None
     return row[0]
 
+
+def get_bio_by_id(account_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT bio FROM accounts WHERE id = %s", (account_id,))
+            row = cur.fetchone()
+    if row is None:
+        return None
+    return row[0]
+
+
+def update_bio(account_id, bio):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE accounts SET bio = %s WHERE id = %s",
+                (bio, account_id),
+            )
+            return cur.rowcount > 0
