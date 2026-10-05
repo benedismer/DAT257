@@ -235,7 +235,7 @@
 					<div class="event-id">#{{ event[0] }}</div>
 					<h3 class="event-name">{{ event[1] }}</h3>
 					<div class="event-details">
-						<div><strong>Organizer:</strong> {{ event[6] }}</div>
+						<div><strong>Team:</strong> {{ event[6] }}</div>
 						<div><strong>Location:</strong> {{ event[3] or '' }}{% if event[3] and event[2] %}, {% endif %}{{ event[2] or 'Not specified' }}</div>
 						<div><strong>Attendees ({{ event[7] | length }}):</strong> {{ event[7] | join(', ') or 'None yet' }}</div>
 					</div>

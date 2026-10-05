@@ -7,9 +7,13 @@ from database import database
 
 
 class FakeCursor:
-    def __init__(self, rows=None, returned_id=None):
+    def __init__(self, rows=None, returned_id=None, fetchone_sequence=None):
         self.rows = rows or []
         self.returned_id = returned_id
+        # fetchone_sequence: list of values returned by successive fetchone()
+        # calls (each element is either a tuple or None). Takes priority over
+        # returned_id when provided.
+        self._fetchone_seq = list(fetchone_sequence) if fetchone_sequence else None
         self.executed = []
         self.rowcount = 1
 
@@ -23,6 +27,8 @@ class FakeCursor:
         self.executed.append((query, parameters))
 
     def fetchone(self):
+        if self._fetchone_seq is not None:
+            return self._fetchone_seq.pop(0) if self._fetchone_seq else None
         if self.returned_id is not None:
             returned_id, self.returned_id = self.returned_id, None
             return (returned_id,)
@@ -110,7 +116,7 @@ class DatabaseTests(unittest.TestCase):
 
         query, parameters = cursor.executed[0]
         self.assertIn("JOIN Subscriptions s", query)
-        self.assertIn("s.user_subscribed = %s", query)
+        self.assertIn("s.subscriber_id = %s", query)
         self.assertEqual(parameters, [4])
 
     def test_get_events_rejects_unknown_sort_by_using_default(self):
@@ -223,6 +229,51 @@ class DatabaseTests(unittest.TestCase):
         self.assertIn("DELETE FROM EventAttendance", cursor.executed[0][0])
         self.assertIn("DELETE FROM events", cursor.executed[1][0])
         self.assertEqual(cursor.executed[0][1], cursor.executed[1][1])
+
+    # ---- Teams ----
+
+    def test_create_team_inserts_team_and_sets_is_team_flag(self):
+        # fetchone_sequence: first call returns the new team id, second (UPDATE)
+        # returns nothing (UPDATE does not call fetchone in our code).
+        cursor = FakeCursor(fetchone_sequence=[(42,)])
+
+        with database_connection(cursor):
+            team_id = database.create_team(7, "Green Gothenburg", "Gothenburg", "Sweden")
+
+        self.assertEqual(team_id, 42)
+        self.assertEqual(len(cursor.executed), 2)
+        self.assertIn("INSERT INTO Teams", cursor.executed[0][0])
+        self.assertEqual(cursor.executed[0][1], (7, "Green Gothenburg", "Gothenburg", "Sweden"))
+        self.assertIn("UPDATE Accounts", cursor.executed[1][0])
+        self.assertIn("isTeam = TRUE", cursor.executed[1][0])
+        self.assertEqual(cursor.executed[1][1], (7,))
+
+    def test_create_team_strips_empty_city_and_country_to_none(self):
+        cursor = FakeCursor(fetchone_sequence=[(5,)])
+
+        with database_connection(cursor):
+            team_id = database.create_team(3, "Team X", "", "")
+
+        self.assertEqual(team_id, 5)
+        _, city, country = cursor.executed[0][1][2], cursor.executed[0][1][2], cursor.executed[0][1][3]
+        self.assertIsNone(cursor.executed[0][1][2])
+        self.assertIsNone(cursor.executed[0][1][3])
+
+    def test_create_team_returns_none_on_duplicate(self):
+        import psycopg
+
+        cursor = FakeCursor()
+
+        def raise_unique_violation(query, parameters=None):
+            cursor.executed.append((query, parameters))
+            raise psycopg.errors.UniqueViolation()
+
+        cursor.execute = raise_unique_violation
+
+        with database_connection(cursor):
+            team_id = database.create_team(7, "Duplicate Team", None, None)
+
+        self.assertIsNone(team_id)
 
 
 class RouteTests(unittest.TestCase):
@@ -369,6 +420,59 @@ class RouteTests(unittest.TestCase):
         response = self.client.post("/events", json={})
 
         self.assertEqual(response.status_code, 400)
+
+    # ---- Create Team route ----
+
+    def test_guest_cannot_create_team(self):
+        response = self.client.post(
+            "/create-team",
+            data={"team_name": "Green Squad", "city": "Gothenburg", "country": "Sweden"},
+        )
+
+        self.assertEqual(response.status_code, 401)
+
+    @patch.object(app_module, "create_team", return_value=1)
+    def test_logged_in_user_can_create_team(self, mock_create_team):
+        self.login_session(7)
+        response = self.client.post(
+            "/create-team",
+            data={"team_name": "Green Squad", "city": "Gothenburg", "country": "Sweden"},
+        )
+
+        self.assertEqual(response.status_code, 302)  # redirect to home
+        mock_create_team.assert_called_once_with(7, "Green Squad", "Gothenburg", "Sweden")
+
+    @patch.object(app_module, "create_team", return_value=1)
+    def test_create_team_without_location_is_allowed(self, mock_create_team):
+        self.login_session(7)
+        response = self.client.post(
+            "/create-team",
+            data={"team_name": "Wanderers", "city": "", "country": ""},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        mock_create_team.assert_called_once_with(7, "Wanderers", None, None)
+
+    @patch.object(app_module, "create_team", return_value=1)
+    def test_create_team_requires_team_name(self, mock_create_team):
+        self.login_session(7)
+        response = self.client.post(
+            "/create-team",
+            data={"team_name": "", "city": "Gothenburg", "country": "Sweden"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        mock_create_team.assert_not_called()
+
+    @patch.object(app_module, "create_team", return_value=None)
+    def test_create_team_returns_409_if_account_already_has_team(self, mock_create_team):
+        self.login_session(7)
+        response = self.client.post(
+            "/create-team",
+            data={"team_name": "Second Team", "city": "", "country": ""},
+        )
+
+        self.assertEqual(response.status_code, 409)
 
 
 if __name__ == "__main__":

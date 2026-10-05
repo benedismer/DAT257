@@ -28,7 +28,7 @@ COMPOSE  := $(DC) --env-file $(THIS_DIR)../.env -f $(THIS_DIR)docker-compose.yml
 # These targets are commands, not files.
 .PHONY: help up up-build down teardown restart \
         build rebuild logs logs-web logs-db ps \
-        shell db-shell up-db up-web stop-web stop-db clean status
+        shell db-shell up-db up-web stop-web stop-db clean status seed seed-reset
 
 ## ----------------------------------------------------------------------------
 ## Everyday commands
@@ -107,6 +107,16 @@ shell: ## Open a shell inside the running web container
 
 db-shell: ## Open a psql prompt inside the running database container
 	$(COMPOSE) exec db psql -U $${POSTGRES_USER:-appuser} -d $${POSTGRES_DB:-appdb}
+
+## ----------------------------------------------------------------------------
+## Database seeding
+## ----------------------------------------------------------------------------
+
+seed: ## Populate the database with fake accounts, teams, and events
+	$(COMPOSE) exec web python seed.py
+
+seed-reset: ## Wipe all data, then repopulate with fake data (fresh seed)
+	$(COMPOSE) exec web python seed.py --reset
 
 ## ----------------------------------------------------------------------------
 ## Housekeeping
