@@ -191,6 +191,8 @@ Run `make help` at any time to see every available command.
 | `make restart` | `down` then `up` |
 | `make ps` / `make status` | Show whether containers are running |
 | `make logs` | Watch the logs from all containers (Ctrl-C to stop watching) |
+| `make seed` | Populate the database with fake accounts, teams, and events |
+| `make seed-reset` | Wipe all data, then repopulate with fake data (fresh seed) |
 
 A normal day: `make up`, do your work (edits reload automatically), then
 `make down` when you're finished.
@@ -216,6 +218,8 @@ these:
 | `make rebuild` | `docker compose -f docker/docker-compose.yml build --no-cache` |
 | `make ps` | `docker compose -f docker/docker-compose.yml ps` |
 | `make logs` | `docker compose -f docker/docker-compose.yml logs -f` |
+| `make seed` | `idk` |
+| `make seed-reset` | `idk` |
 
 > Tip: `docker compose` reads variables from `.env` in the directory you run it
 > from, so run these from the **project root** (where your `.env` lives).

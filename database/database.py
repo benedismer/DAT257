@@ -63,7 +63,7 @@ def get_events(
             if subscriber_id is not None:
                 subscription_join = (
                     "JOIN Subscriptions s ON "
-                    "s.organizer_id = a.id"
+                    "s.team_id = a.id"
                 )
                 conditions.append("s.subscriber_id = %s")
                 parameters.append(subscriber_id)
@@ -239,19 +239,19 @@ def delete_event(event_id, username):
             return row is not None
 
 
-def subscribe_to_user(subscriber_id, organizer_id):
+def subscribe_to_user(subscriber_id, team_id):
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO Subscriptions
-                    (subscriber_id, organizer_id)
+                    (subscriber_id, team_id)
                 SELECT %s, id FROM Accounts
                 WHERE id = %s AND id <> %s
                 ON CONFLICT DO NOTHING
                 RETURNING id
                 """,
-                (subscriber_id, organizer_id, subscriber_id),
+                (subscriber_id, team_id, subscriber_id),
             )
             return cur.fetchone() is not None
 
@@ -264,7 +264,7 @@ def get_users(search=None, subscriber_id=None):
 
     if subscriber_id is not None:
         conditions.append("a.id <> %s")
-        subscription_join = "LEFT JOIN Subscriptions s ON s.organizer_id = a.id AND s.subscriber_id = %s"
+        subscription_join = "LEFT JOIN Subscriptions s ON s.team_id = a.id AND s.subscriber_id = %s"
         parameters.extend([subscriber_id, subscriber_id])
     if search:
         conditions.append("a.username ILIKE %s")
@@ -288,16 +288,16 @@ def get_users(search=None, subscriber_id=None):
             return cur.fetchall()
 
 
-def unsubscribe_from_user(subscriber_id, organizer_id):
+def unsubscribe_from_user(subscriber_id, team_id):
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                                 DELETE FROM Subscriptions
                                 WHERE subscriber_id = %s
-                                    AND organizer_id = %s
+                                    AND team_id = %s
                 """,
-                                (subscriber_id, organizer_id),
+                                (subscriber_id, team_id),
             )
             return cur.rowcount > 0
 
@@ -337,7 +337,7 @@ def signup_for_account(username, password):
             try:
                 cur.execute(
                     """
-                    INSERT INTO Accounts (username, password_hash, isOrganiser)
+                    INSERT INTO Accounts (username, password_hash, isTeam)
                     VALUES (%s, %s, %s)
                     RETURNING id
                     """,
@@ -384,6 +384,33 @@ def change_password(username, password):
             except psycopg.errors.UniqueViolation: # if a unique constaint raises and error (like duplicate username inserted)
                 return None # signals that a signup was unable to be made
 
+
+
+def create_team(admin_id, team_name, city, country):
+    """Create a team for an account and mark the account as isTeam=TRUE.
+
+    Returns the new team id on success, or None if the account already has a
+    team (UNIQUE constraint on admin_id) or the account doesn't exist.
+    """
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO Teams (admin_id, name, city, country)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id
+                    """,
+                    (admin_id, team_name, city or None, country or None),
+                )
+                team_id = cur.fetchone()[0]
+                cur.execute(
+                    "UPDATE Accounts SET isTeam = TRUE WHERE id = %s",
+                    (admin_id,),
+                )
+                return team_id
+            except psycopg.errors.UniqueViolation:
+                return None  # account already owns a team
 
 
 def get_username_by_id(account_id):

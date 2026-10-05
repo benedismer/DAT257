@@ -31,16 +31,30 @@
 			color: var(--text-muted);
 		}
 
+		/* ---- Two-column auth layout ---- */
+		.auth-columns {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 24px;
+			margin-bottom: 24px;
+		}
+
 		/* form label uses monospace metadata style (design.md §4) */
 		.auth-form {
 			display: grid;
 			gap: 18px;
-			max-width: 340px;
 			/* single visible border instead of a shadow — homemade touch (§3, §6) */
 			border: 1px solid var(--border);
 			border-radius: var(--radius);
 			background: var(--surface);
 			padding: 24px;
+		}
+
+		.auth-form h3 {
+			margin: 0 0 4px;
+			font-size: 1rem;
+			font-weight: 600;
+			color: var(--text);
 		}
 
 		.auth-label {
@@ -108,9 +122,76 @@
 			background: var(--accent-light);
 		}
 
+		/* ---- Create a Team accordion ---- */
+		.team-section {
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+		}
+
+		.team-toggle {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			width: 100%;
+			padding: 16px 20px;
+			background: none;
+			border: none;
+			cursor: pointer;
+			font: 600 0.95rem var(--font-ui);
+			color: var(--text);
+			text-align: left;
+			border-radius: var(--radius);
+			transition: background-color 160ms ease-out;
+		}
+
+		.team-toggle:hover {
+			background: var(--accent-light);
+		}
+
+		.team-toggle-icon {
+			font-size: 0.75rem;
+			color: var(--text-muted);
+			transition: transform 200ms ease-out;
+			flex-shrink: 0;
+		}
+
+		.team-toggle[aria-expanded="true"] .team-toggle-icon {
+			transform: rotate(180deg);
+		}
+
+		.team-body {
+			display: none;
+			padding: 0 20px 20px;
+			border-top: 1px solid var(--border);
+		}
+
+		.team-body.open {
+			display: grid;
+			gap: 16px;
+		}
+
+		.team-intro {
+			margin: 16px 0 0;
+			font-size: 0.88rem;
+			color: var(--text-muted);
+		}
+
+		.team-note {
+			margin: 2px 0 0;
+			font-size: 0.78rem;
+			font-style: italic;
+			color: var(--text-muted);
+		}
+
+		.team-fields {
+			display: grid;
+			gap: 14px;
+		}
+
 		@media (max-width: 640px) {
 			.list-head { display: block; }
-			.auth-form { max-width: 100%; }
+			.auth-columns { grid-template-columns: 1fr; }
 			.auth-actions { flex-direction: column; }
 			.btn { width: 100%; }
 		}
@@ -121,29 +202,124 @@
 		<section class="list-head" aria-labelledby="page-title">
 			<div>
 				<h2 id="page-title">Log In // Sign Up</h2>
-				<p>Write your credentials here in order to either login to your account or create a Rubby account</p>
+				{% if message %}
+					{% if message_type == 'success' %}
+						<p style="font-weight:600; color: var(--accent);">{{ message }}</p>
+					{% else %}
+						<p style="font-weight:600; color: #c0392b;">{{ message }}</p>
+					{% endif %}
+				{% else %}
+					<p>Use the boxes below to log in to your existing account or create a new Rubby account.</p>
+				{% endif %}
 			</div>
 		</section>
 
-		<form class="auth-form" method="post" action="{{ url_for('login') }}">
-			<label class="auth-label" for="username">
-				Username
-				<input class="auth-input" id="username" name="username" type="text"
-					   autocomplete="username" required>
-			</label>
+		<div class="auth-columns">
+			<!-- ---- Login box ---- -->
+			<form class="auth-form" method="post" action="{{ url_for('login') }}" aria-labelledby="login-heading">
+				<h3 id="login-heading">Log In</h3>
 
-			<label class="auth-label" for="password">
-				Password
-				<input class="auth-input" id="password" name="password" type="password"
-					   autocomplete="current-password" required>
-			</label>
+				<label class="auth-label" for="login-username">
+					Username
+					<input class="auth-input" id="login-username" name="username" type="text"
+						   autocomplete="username" required>
+				</label>
 
-			<div class="auth-actions">
-				<button class="btn btn-primary" type="submit" name="action" value="login">Log in</button>
-				<button class="btn btn-ghost" type="submit" name="action" value="signup">Sign up</button>
-				<button class="btn btn-ghost" type="submit" name="action" value="change_pw">Change Password</button>
+				<label class="auth-label" for="login-password">
+					Password
+					<input class="auth-input" id="login-password" name="password" type="password"
+						   autocomplete="current-password" required>
+				</label>
+
+				<div class="auth-actions">
+					<button class="btn btn-primary" type="submit" name="action" value="login">Log in</button>
+				</div>
+			</form>
+
+			<!-- ---- Sign Up box ---- -->
+			<form class="auth-form" method="post" action="{{ url_for('login') }}" aria-labelledby="signup-heading">
+				<h3 id="signup-heading">Create Account</h3>
+
+				<label class="auth-label" for="signup-username">
+					Username
+					<input class="auth-input" id="signup-username" name="username" type="text"
+						   autocomplete="username" required>
+				</label>
+
+				<label class="auth-label" for="signup-password">
+					Password
+					<input class="auth-input" id="signup-password" name="password" type="password"
+						   autocomplete="new-password" required>
+				</label>
+
+				<div class="auth-actions">
+					<button class="btn btn-primary" type="submit" name="action" value="signup">Sign up</button>
+				</div>
+			</form>
+		</div>
+
+		<!-- ---- Create a Team dropdown ---- -->
+		<div class="team-section">
+			<button class="team-toggle" type="button"
+					aria-expanded="false" aria-controls="team-body"
+					id="team-toggle-btn">
+				Create a Team
+				<span class="team-toggle-icon" aria-hidden="true">▼</span>
+			</button>
+
+			<div class="team-body" id="team-body" role="region" aria-labelledby="team-toggle-btn">
+				{% if current_username %}
+				<p class="team-intro">
+					Once you create a team your account will become the admin of this team.
+				</p>
+
+				<form class="team-fields" method="post" action="{{ url_for('create_team_route') }}">
+					<label class="auth-label" for="team-name">
+						Team Name
+						<input class="auth-input" id="team-name" name="team_name" type="text"
+							   placeholder="e.g. Green Gothenburg" required>
+					</label>
+
+					<label class="auth-label" for="team-city">
+						City
+						<input class="auth-input" id="team-city" name="city" type="text"
+							   placeholder="e.g. Gothenburg">
+					</label>
+					<label class="auth-label" for="team-country">
+						Country
+						<input class="auth-input" id="team-country" name="country" type="text"
+							   placeholder="e.g. Sweden">
+					</label>
+
+					<p class="team-note">
+						Your team does not have to be associated with a location.
+					</p>
+
+					<div class="auth-actions">
+						<button class="btn btn-primary" type="submit">Create Team</button>
+					</div>
+				</form>
+				{% else %}
+				<p class="team-intro">
+					You have to be logged into an account that will serve as Team Admin in order to create a Team.
+				</p>
+				{% endif %}
 			</div>
-		</form>
+		</div>
 	</div>
 {% endblock %}
 
+{% block scripts %}
+<script>
+	(function () {
+		const btn = document.getElementById("team-toggle-btn");
+		const body = document.getElementById("team-body");
+
+		btn.addEventListener("click", function () {
+			const expanded = btn.getAttribute("aria-expanded") === "true";
+			btn.setAttribute("aria-expanded", String(!expanded));
+			body.classList.toggle("open", !expanded);
+		});
+	}());
+</script>
+{% endblock %}
