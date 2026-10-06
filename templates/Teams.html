@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% set active_page = 'teams' %}
+
+{% block title %}Teams{% endblock %}
+
+{% block styles %}
+		.page {
+			width: min(760px, calc(100% - 32px));
+			margin: 0 auto;
+			padding: 40px 0 72px;
+		}
+
+		.page-head {
+			display: flex;
+			align-items: end;
+			justify-content: space-between;
+			gap: 20px;
+			margin-bottom: 28px;
+		}
+
+		.page-head h2 { margin: 0 0 6px; font-size: 1.6rem; font-weight: 600; }
+		.page-head p { margin: 0; color: var(--text-muted); }
+
+		.search-form { display: flex; gap: 8px; }
+		.search {
+			width: min(100%, 260px);
+			padding: 9px 12px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			color: var(--text);
+			font: 0.9rem var(--font-ui);
+		}
+		.search-form button, .team-action {
+			padding: 9px 12px;
+			border: 1px solid var(--accent);
+			border-radius: var(--radius);
+			background: var(--accent);
+			color: #fff;
+			font: 600 0.85rem var(--font-ui);
+			cursor: pointer;
+		}
+		.search-form button:hover, .team-action:hover { background: var(--accent-hover); }
+		.team-action.unsubscribe { background: var(--surface); color: var(--accent); }
+
+		.team-list {
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			overflow: hidden;
+		}
+		.team-row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 16px;
+			padding: 16px 20px;
+		}
+		.team-row + .team-row { border-top: 1px dashed var(--border); }
+		.team-name { font-weight: 600; }
+		.team-location { color: var(--text-muted); font-size: 0.9rem; }
+		.empty-state { padding: 24px 20px; color: var(--text-muted); }
+		@media (max-width: 640px) {
+			.page-head { display: block; }
+			.search-form { margin-top: 20px; }
+			.search { flex: 1; width: auto; }
+		}
+{% endblock %}
+
+{% block content %}
+	<div class="page">
+		<section class="page-head" aria-labelledby="page-title">
+			<div>
+				<h2 id="page-title">Teams</h2>
+				<p>Find teams and follow the events they create.</p>
+			</div>
+			<form class="search-form" method="get" action="{{ request.path }}">
+				<input class="search" name="q" type="search" value="{{ search }}"
+					   placeholder="Search teams..." aria-label="Search teams">
+				<button type="submit">Search</button>
+			</form>
+		</section>
+
+		<section class="team-list" aria-live="polite">
+			{% for team in teams %}
+				<article class="team-row" data-team-id="{{ team[0] }}">
+					<div>
+						<div class="team-name">{{ team[1] }}</div>
+						{% if team[2] or team[3] %}
+							<div class="team-location">
+								{{ [team[2], team[3]] | select | join(", ") }}
+							</div>
+						{% endif %}
+					</div>
+					<button class="team-action{% if team[4] %} unsubscribe{% endif %}"
+							type="button" data-subscribed="{{ 'true' if team[4] else 'false' }}">
+						{{ 'Unsubscribe' if team[4] else 'Subscribe' }}
+					</button>
+				</article>
+			{% else %}
+				<div class="empty-state">No teams were found.</div>
+			{% endfor %}
+		</section>
+	</div>
+{% endblock %}
+
+{% block scripts %}
+	<script>
+		document.querySelectorAll(".team-action").forEach((button) => {
+			button.addEventListener("click", async () => {
+				const row = button.closest(".team-row");
+				const subscribed = button.dataset.subscribed === "true";
+				const response = await fetch(`/subscriptions/${row.dataset.teamId}`, {
+					method: subscribed ? "DELETE" : "POST"
+				});
+				if (response.status === 401) {
+					window.location.href = "{{ url_for('login') }}";
+					return;
+				}
+				if (!response.ok) return;
+				button.dataset.subscribed = String(!subscribed);
+				button.textContent = subscribed ? "Subscribe" : "Unsubscribe";
+				button.classList.toggle("unsubscribe", !subscribed);
+			});
+		});
+	</script>
+{% endblock %}

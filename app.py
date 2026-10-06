@@ -243,6 +243,47 @@ def user_list():
         search=search,
     )
 
+@app.route("/teams")
+def team_list():
+    search = request.args.get("q", "").strip()
+    current_user_id = session.get("user_id")
+
+    conditions = []
+    parameters = [current_user_id]
+    if current_user_id is not None:
+        conditions.append("t.admin_id <> %s")
+        parameters.append(current_user_id)
+    if search:
+        conditions.append(
+            "(t.name ILIKE %s OR COALESCE(t.city, '') ILIKE %s "
+            "OR COALESCE(t.country, '') ILIKE %s)"
+        )
+        search_value = f"%{search}%"
+        parameters.extend([search_value] * 3)
+
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                    SELECT t.admin_id, t.name, t.city, t.country,
+                           (s.id IS NOT NULL) AS subscribed
+                    FROM Teams t
+                    LEFT JOIN Subscriptions s
+                        ON s.team_id = t.admin_id AND s.subscriber_id = %s
+                    {where_clause}
+                    ORDER BY t.name ASC
+                """,
+                parameters,
+            )
+            teams = cur.fetchall()
+
+    return render_template(
+        "Teams.html",
+        teams=teams,
+        search=search,
+    )
+
 
 @app.post("/subscriptions/<int:user_id>")
 def subscribe(user_id):

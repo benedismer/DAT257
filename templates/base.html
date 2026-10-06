@@ -177,6 +177,8 @@
 		<a href="{{ url_for('user_list') }}"
 		   {% if active_page == 'users' %}aria-current="page"{% endif %}>Users</a>
 		{% if current_username %}
+		<a href="{{ url_for('team_list') }}"
+		   {% if active_page == 'teams' %}aria-current="page"{% endif %}>Teams</a>
 		<a href="{{ url_for('created_events') }}"
 		   {% if active_page == 'created-events' %}aria-current="page"{% endif %}>My events</a>
 		{% endif %}
