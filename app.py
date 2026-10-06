@@ -250,9 +250,6 @@ def team_list():
 
     conditions = []
     parameters = [current_user_id]
-    if current_user_id is not None:
-        conditions.append("t.admin_id <> %s")
-        parameters.append(current_user_id)
     if search:
         conditions.append(
             "(t.name ILIKE %s OR COALESCE(t.city, '') ILIKE %s "
@@ -267,14 +264,15 @@ def team_list():
             cur.execute(
                 f"""
                     SELECT t.admin_id, t.name, t.city, t.country,
-                           (s.id IS NOT NULL) AS subscribed
+                           (s.id IS NOT NULL) AS subscribed,
+                           (t.admin_id = %s) AS is_owner
                     FROM Teams t
                     LEFT JOIN Subscriptions s
                         ON s.team_id = t.admin_id AND s.subscriber_id = %s
                     {where_clause}
                     ORDER BY t.name ASC
                 """,
-                parameters,
+                [current_user_id, *parameters],
             )
             teams = cur.fetchall()
 

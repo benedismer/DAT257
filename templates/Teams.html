@@ -93,10 +93,14 @@
 							</div>
 						{% endif %}
 					</div>
-					<button class="team-action{% if team[4] %} unsubscribe{% endif %}"
-							type="button" data-subscribed="{{ 'true' if team[4] else 'false' }}">
-						{{ 'Unsubscribe' if team[4] else 'Subscribe' }}
-					</button>
+					{% if team[5] %}
+						<span class="team-action">Your team</span>
+					{% else %}
+						<button class="team-action{% if team[4] %} unsubscribe{% endif %}"
+								type="button" data-subscribed="{{ 'true' if team[4] else 'false' }}">
+							{{ 'Unsubscribe' if team[4] else 'Subscribe' }}
+						</button>
+					{% endif %}
 				</article>
 			{% else %}
 				<div class="empty-state">No teams were found.</div>
