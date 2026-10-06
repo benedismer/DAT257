@@ -3,6 +3,7 @@ import threading
 import time as time_module
 from datetime import date, time
 import psycopg
+from user_info import UserInfo
 
 from flask import Flask, jsonify, render_template, request, session, redirect, url_for
 
@@ -16,6 +17,7 @@ from database.database import (
     get_db_connection,
     get_events,
     get_attending_event_ids,
+    get_bio_by_id,
     get_created_events_with_attendees,
     get_users,
     get_username_by_id,
@@ -24,6 +26,7 @@ from database.database import (
     stop_attending_event,
     subscribe_to_user,
     update_event,
+    update_bio,
     unsubscribe_from_user,
 )
 
@@ -79,6 +82,37 @@ def index():
         events=get_events(),
         attending_event_ids=attending_event_ids,
     )
+
+@app.route("/profile", methods=["GET", "POST"])
+def organizer_profile():
+    user_id = session.get("user_id")
+    if user_id is None:
+        return redirect(url_for("login"))
+
+    username = get_username_by_id(user_id)
+    if username is None:
+        session.pop("user_id", None)
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        bio = request.form.get("bio", "")
+        if len(bio) > 500:
+            return render_template(
+                "Profile.html",
+                user=UserInfo(id=user_id, username=username),
+                bio=bio,
+                bio_error="Your bio must be 500 characters or fewer.",
+            ), 400
+        update_bio(user_id, bio.strip())
+        return redirect(url_for("organizer_profile", saved="1"))
+
+    return render_template(
+        "Profile.html",
+        user=UserInfo(id=user_id, username=username),
+        bio=get_bio_by_id(user_id) or "",
+        bio_saved=request.args.get("saved") == "1",
+    )
+    
 
 @app.route("/List")
 def event_list():

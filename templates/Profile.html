@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% set active_page = 'profile' %}
+
+{% block title %}Profile{% endblock %}
+
+{% block styles %}
+		.page {
+			width: min(860px, calc(100% - 32px));
+			margin: 0 auto;
+			padding: 40px 0 72px;
+		}
+
+		.list-head {
+			display: flex;
+			align-items: flex-end;
+			justify-content: space-between;
+			gap: 20px;
+			margin-bottom: 28px;
+		}
+
+		.list-head h2 {
+			margin: 0 0 6px;
+			font-size: 1.6rem;
+			font-weight: 600;
+		}
+
+		.list-head h2.bio-title {
+			font-size: 1.1rem;
+		}
+
+		.list-head p {
+			margin: 0;
+			max-width: 52ch;
+			color: var(--text-muted);
+		}
+
+		.bio-form {
+			display: grid;
+			gap: 10px;
+			max-width: 52ch;
+		}
+
+		.bio-form textarea {
+			width: 100%;
+			min-height: 120px;
+			padding: 10px 12px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			color: var(--text);
+			font: 0.9rem var(--font-ui);
+			resize: vertical;
+		}
+
+		.bio-form button {
+			justify-self: start;
+			padding: 9px 12px;
+			border: 1px solid var(--accent);
+			border-radius: var(--radius);
+			background: var(--accent);
+			color: #fff;
+			font: 600 0.85rem var(--font-ui);
+			cursor: pointer;
+		}
+
+		/* label uses monospace metadata style (design.md §4) */
+		.search-label {
+			display: grid;
+			gap: 6px;
+			font-family: var(--font-mono);
+			font-size: 0.72rem;
+			letter-spacing: 0.04em;
+			text-transform: uppercase;
+			color: var(--text-muted);
+		}
+
+		.search {
+			width: min(100%, 260px);
+			padding: 9px 12px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			color: var(--text);
+			font: 0.9rem var(--font-ui);
+		}
+
+		.search:focus {
+			outline: none;
+			border-color: var(--accent);
+			box-shadow: 0 0 0 2px var(--accent-light);
+		}
+
+		/* card treatment: a single visible border, no shadow (§6) */
+		.event-list {
+			display: block;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			overflow: hidden;
+		}
+
+		.event {
+			display: grid;
+			grid-template-columns: auto minmax(160px, 1.4fr) 1fr auto;
+			align-items: center;
+			gap: 20px;
+			padding: 18px 22px;
+		}
+
+		/* dashed divider between rows — a light handmade touch (§3) */
+		.event + .event {
+			border-top: 1px dashed var(--border);
+		}
+
+		.event-id {
+			font-family: var(--font-mono);
+			font-size: 0.78rem;
+			color: var(--accent);
+		}
+
+		.event-name {
+			margin: 0;
+			font-size: 1.12rem;
+			font-weight: 600;
+		}
+
+		.event-location {
+			color: var(--text-muted);
+			font-size: 0.9rem;
+			line-height: 1.45;
+		}
+
+		.event-date {
+			text-align: right;
+			white-space: nowrap;
+			font-family: var(--font-mono);
+			font-size: 0.8rem;
+			color: var(--text-muted);
+			line-height: 1.5;
+		}
+
+		.empty-state {
+			padding: 28px 22px;
+			border: 1px dashed var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			color: var(--text-muted);
+		}
+
+		@media (max-width: 640px) {
+			.list-head { display: block; }
+			.search-label { margin-top: 20px; }
+			.search { width: 100%; }
+
+			.event {
+				grid-template-columns: 1fr;
+				gap: 8px;
+				padding: 18px;
+			}
+			.event-id { order: -1; }
+			.event-date { text-align: left; white-space: normal; }
+		}
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <section class="list-head" aria-labelledby="page-title">
+        <div>
+            <h2 id="page-title">{{ user.username }}'s Profile</h2>
+
+			<h2 id="bio-title" class="bio-title">Bio</h2>
+            <form class="bio-form" method="post" action="{{ url_for('organizer_profile') }}">
+            <label for="bio">Introduce yourself (up to 500 characters)</label>
+            <textarea id="bio" name="bio" maxlength="500">{{ bio }}</textarea>
+            {% if bio_error %}<p role="alert">{{ bio_error }}</p>{% endif %}
+            <button type="submit">Save bio</button>
+            </form>
+            {% if bio_saved %}<p role="status">Bio saved.</p>{% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

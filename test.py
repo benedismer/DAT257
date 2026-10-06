@@ -289,6 +289,45 @@ class RouteTests(unittest.TestCase):
         with self.client.session_transaction() as session:
             session["user_id"] = user_id
 
+    @patch.object(app_module, "get_bio_by_id", return_value="I like cleanups.")
+    @patch.object(app_module, "get_username_by_id", return_value="alice")
+    def test_logged_in_user_can_open_profile(self, get_username, get_bio):
+        self.login_session()
+
+        response = self.client.get("/profile")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"alice's Profile", response.data)
+        self.assertIn(b"I like cleanups.", response.data)
+
+    @patch.object(app_module, "update_bio", return_value=True)
+    @patch.object(app_module, "get_username_by_id", return_value="alice")
+    def test_logged_in_user_can_update_bio(self, get_username, update_bio):
+        self.login_session()
+
+        response = self.client.post("/profile", data={"bio": "New bio"})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/profile?saved=1", response.headers["Location"])
+        update_bio.assert_called_once_with(7, "New bio")
+
+    @patch.object(app_module, "update_bio")
+    @patch.object(app_module, "get_username_by_id", return_value="alice")
+    def test_profile_rejects_bio_over_500_characters(self, get_username, update_bio):
+        self.login_session()
+
+        response = self.client.post("/profile", data={"bio": "x" * 501})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"500 characters or fewer", response.data)
+        update_bio.assert_not_called()
+
+    def test_guest_is_redirected_from_profile(self):
+        response = self.client.get("/profile")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login", response.headers["Location"])
+
     @patch.object(app_module, "get_events", return_value=[])
     @patch.object(app_module, "get_attending_event_ids", return_value=set())
     @patch.object(app_module, "get_username_by_id", return_value=None)
