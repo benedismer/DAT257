@@ -40,6 +40,13 @@
 			background: var(--surface);
 		}
 
+		.team-event-marker {
+			background: #d64040;
+			border: 2px solid #fff;
+			border-radius: 50%;
+			box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+		}
+
 		.map-hint {
 			margin: 12px 2px 0;
 			color: var(--text-muted);
@@ -142,12 +149,22 @@
 
 		const events = {{ events | default([]) | tojson }};
 		const attendingEventIds = new Set({{ attending_event_ids | default([]) | list | tojson }});
+		const teamEventIds = new Set({{ team_event_ids | default([]) | list | tojson }});
 
 		function addEventMarker(event) {
 			const attendanceMessage = attendingEventIds.has(event[0])
 				? "<br><strong>You are attending this event.</strong>"
 				: "";
-			L.marker([event[6], event[7]])
+			const markerOptions = teamEventIds.has(event[0])
+				? {
+					icon: L.divIcon({
+						className: "team-event-marker",
+						iconSize: [16, 16],
+						iconAnchor: [8, 8]
+					})
+				}
+				: {};
+			L.marker([event[6], event[7]], markerOptions)
 				.addTo(map)
 				.bindPopup(`<strong>${event[1]}</strong><br>${event[5]} at ${event[4]}${attendanceMessage}`);
 		}

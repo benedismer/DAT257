@@ -208,7 +208,9 @@
 						<a href="{{ url_for('event_list', view='past-attending') }}"
 						   {% if past_attending %}aria-current="page"{% endif %}>Past attended</a>
 						<a href="{{ url_for('event_list', view='subscribed') }}"
-						   {% if subscribed_only %}aria-current="page"{% endif %}>Subscribed teams</a>
+						   {% if subscribed_only %}aria-current="page"{% endif %}>Subscribed users</a>
+							<a href="{{ url_for('event_list', view='teams') }}"
+							   {% if team_only %}aria-current="page"{% endif %}>My team</a>
 					{% endif %}
 				</nav>
 			</div>

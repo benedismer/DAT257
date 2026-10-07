@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% set active_page = 'teams' %}
+
+{% block title %}Teams{% endblock %}
+
+{% block styles %}
+		.page {
+			width: min(760px, calc(100% - 32px));
+			margin: 0 auto;
+			padding: 40px 0 72px;
+		}
+
+		.page-head {
+			display: flex;
+			align-items: end;
+			justify-content: space-between;
+			gap: 20px;
+			margin-bottom: 28px;
+		}
+
+		.page-head h2 { margin: 0 0 6px; font-size: 1.6rem; font-weight: 600; }
+		.page-head p { margin: 0; color: var(--text-muted); }
+		.search-form { display: flex; gap: 8px; }
+		.search, .search-form button, .team-action {
+			padding: 9px 12px;
+			border: 1px solid var(--accent);
+			border-radius: var(--radius);
+			background: var(--surface);
+			color: var(--text);
+			font: 0.85rem var(--font-ui);
+		}
+		.search { border-color: var(--border); }
+		.search-form button, .team-action { background: var(--accent); color: #fff; cursor: pointer; }
+		.team-action.leave { background: var(--surface); color: var(--accent); }
+		.team-list {
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			overflow: hidden;
+		}
+		.member-list {
+			margin-top: 28px;
+			padding: 18px 20px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+		}
+		.member-list h3 { margin: 0 0 12px; font-size: 1rem; }
+		.member-list ul { margin: 0; padding-left: 20px; color: var(--text-muted); }
+		.member-list li + li { margin-top: 6px; }
+		.team-row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 16px;
+			padding: 16px 20px;
+		}
+		.team-row + .team-row { border-top: 1px dashed var(--border); }
+		.team-name { margin: 0; font-weight: 600; }
+		.team-meta { color: var(--text-muted); font-size: 0.82rem; }
+		.empty-state { padding: 24px 20px; color: var(--text-muted); }
+		@media (max-width: 640px) {
+			.page-head { display: block; }
+			.search-form { margin-top: 20px; }
+			.search { flex: 1; width: auto; }
+		}
+{% endblock %}
+
+{% block content %}
+	<div class="page">
+		<section class="page-head" aria-labelledby="page-title">
+			<div>
+				<h2 id="page-title">Teams</h2>
+				<p>Join a team to see events created by its leader.</p>
+			</div>
+			<form class="search-form" method="get" action="{{ url_for('team_list') }}">
+				<input class="search" name="q" type="search" value="{{ search }}"
+					   placeholder="Search teams..." aria-label="Search teams">
+				<button type="submit">Search</button>
+			</form>
+		</section>
+
+		<section class="team-list" aria-live="polite">
+			{% for team in teams %}
+				<article class="team-row" data-team-id="{{ team[0] }}">
+					<div>
+						<p class="team-name">{{ team[1] }}</p>
+						<div class="team-meta">
+							Leader: {{ team[4] }}
+							{% if team[2] or team[3] %} · {{ team[2] or '' }}{% if team[2] and team[3] %}, {% endif %}{{ team[3] or '' }}{% endif %}
+						</div>
+					</div>
+					{% if current_username %}
+						<button class="team-action{% if team[5] %} leave{% endif %}" type="button"
+								data-joined="{{ 'true' if team[5] else 'false' }}">
+							{{ 'Leave' if team[5] else 'Join' }}
+						</button>
+					{% endif %}
+				</article>
+			{% else %}
+				<div class="empty-state">No teams were found.</div>
+			{% endfor %}
+		</section>
+		{% if team_members %}
+			<section class="member-list" aria-labelledby="member-list-title">
+				<h3 id="member-list-title">My team members</h3>
+				<ul>
+					{% for username, is_leader in team_members %}
+						<li>{{ username }}{% if is_leader %} (leader){% endif %}</li>
+					{% endfor %}
+				</ul>
+			</section>
+		{% endif %}
+	</div>
+{% endblock %}
+
+{% block scripts %}
+	<script>
+		document.querySelectorAll(".team-action").forEach((button) => {
+			button.addEventListener("click", async () => {
+				const row = button.closest(".team-row");
+				const joined = button.dataset.joined === "true";
+				const response = await fetch(`/teams/${row.dataset.teamId}/membership`, {
+					method: joined ? "DELETE" : "POST"
+				});
+				if (response.status === 401) {
+					window.location.href = "{{ url_for('login') }}";
+					return;
+				}
+				if (!response.ok) return;
+				button.dataset.joined = String(!joined);
+				button.textContent = joined ? "Join" : "Leave";
+				button.classList.toggle("leave", !joined);
+			});
+		});
+	</script>
+{% endblock %}
