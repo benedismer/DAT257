@@ -71,6 +71,15 @@ SUBSCRIPTIONS = [
     ("eve",     "EcoRiders"),
 ]
 
+# (member_username, team_username) — users who have joined teams
+TEAM_MEMBERS = [
+    ("alice", "GreenCrew"),
+    ("bob", "GreenCrew"),
+    ("charlie", "EcoRiders"),
+    ("diana", "CleanCoast"),
+    ("eve", "GreenCrew"),
+]
+
 # (event index from EVENTS list above, attendee_username)
 ATTENDANCE = [
     (0, "alice"),
@@ -97,11 +106,12 @@ ATTENDANCE = [
 
 def reset(cur):
     """Delete all rows in dependency order."""
-    cur.execute("DELETE FROM EventAttendance")
-    cur.execute("DELETE FROM Events")
-    cur.execute("DELETE FROM Subscriptions")
-    cur.execute("DELETE FROM Teams")
-    cur.execute("DELETE FROM Accounts")
+    cur.execute("DELETE FROM eventattendance")
+    cur.execute("DELETE FROM teammembers")
+    cur.execute("DELETE FROM events")
+    cur.execute("DELETE FROM subscriptions")
+    cur.execute("DELETE FROM teams")
+    cur.execute("DELETE FROM accounts")
     print("  ✓ existing data cleared")
 
 
@@ -110,7 +120,7 @@ def insert_accounts(cur):
     for username, is_team in ACCOUNTS:
         cur.execute(
             """
-            INSERT INTO Accounts (username, password_hash, isTeam)
+            INSERT INTO accounts (username, password_hash, isteam)
             VALUES (%s, %s, %s)
             ON CONFLICT (username) DO UPDATE
                 SET password_hash = EXCLUDED.password_hash,
@@ -129,7 +139,7 @@ def insert_teams(cur, admin_ids):
         admin_id = admin_ids[username]
         cur.execute(
             """
-            INSERT INTO Teams (admin_id, name, city, country)
+            INSERT INTO teams (admin_id, name, city, country)
             VALUES (%s, %s, %s, %s)
             ON CONFLICT (admin_id) DO UPDATE
                 SET name    = EXCLUDED.name,
@@ -146,7 +156,7 @@ def insert_events(cur):
     for event_name, country, city, evt_time, evt_date, lat, lon, organiser in EVENTS:
         cur.execute(
             """
-            INSERT INTO Events
+            INSERT INTO events
                 (event_name, country, city, time, date, latitude, longitude, username)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
@@ -162,13 +172,31 @@ def insert_subscriptions(cur, account_ids):
     for subscriber, team in SUBSCRIPTIONS:
         cur.execute(
             """
-            INSERT INTO Subscriptions (subscriber_id, team_id)
+            INSERT INTO subscriptions (subscriber_id, team_id)
             VALUES (%s, %s)
             ON CONFLICT DO NOTHING
             """,
             (account_ids[subscriber], account_ids[team]),
         )
     print(f"  ✓ {len(SUBSCRIPTIONS)} subscriptions")
+
+
+def insert_team_members(cur, account_ids):
+    team_ids = {}
+    for team_username, team_name, _, _ in TEAMS:
+        cur.execute("SELECT id FROM teams WHERE name = %s", (team_name,))
+        team_ids[team_username] = cur.fetchone()[0]
+
+    for member, team in TEAM_MEMBERS:
+        cur.execute(
+            """
+            INSERT INTO teammembers (team_id, member_id)
+            VALUES (%s, %s)
+            ON CONFLICT DO NOTHING
+            """,
+            (team_ids[team], account_ids[member]),
+        )
+    print(f"  ✓ {len(TEAM_MEMBERS)} team memberships")
 
 
 def insert_attendance(cur, event_ids, account_ids):
@@ -187,7 +215,7 @@ def insert_attendance(cur, event_ids, account_ids):
     for event_id, username in all_pairs:
         cur.execute(
             """
-            INSERT INTO EventAttendance (eventid, username)
+            INSERT INTO eventattendance (eventid, username)
             VALUES (%s, %s)
             ON CONFLICT DO NOTHING
             """,
@@ -215,6 +243,7 @@ def main():
             insert_teams(cur, account_ids)
             event_ids = insert_events(cur)
             insert_subscriptions(cur, account_ids)
+            insert_team_members(cur, account_ids)
             insert_attendance(cur, event_ids, account_ids)
 
     print("\nDone! All accounts use password: password")
