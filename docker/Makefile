@@ -28,7 +28,7 @@ COMPOSE  := $(DC) --env-file $(THIS_DIR)../.env -f $(THIS_DIR)docker-compose.yml
 # These targets are commands, not files.
 .PHONY: help up up-build down teardown restart \
         build rebuild logs logs-web logs-db ps \
-        shell db-shell up-db up-web stop-web stop-db clean status seed seed-reset
+        shell db-shell up-db up-web stop-web stop-db test clean status seed seed-reset
 
 ## ----------------------------------------------------------------------------
 ## Everyday commands
@@ -77,6 +77,9 @@ up-db: ## Start ONLY the database container
 
 up-web: ## Start ONLY the web (Flask) container
 	$(COMPOSE) up -d web
+
+test: ## Run the Python unit tests in a disposable web container
+	$(COMPOSE) run --rm --no-deps web python test.py
 
 stop-web: ## Stop ONLY the web container (leave it around, don't delete)
 	$(COMPOSE) stop web
