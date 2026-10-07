@@ -352,17 +352,9 @@ def create_team_route():
 
     team_id = create_team(user_id, team_name, city, country)
     if team_id is None:
-        return render_template(
-            "login.html",
-            message="Your account already has a team.",
-            message_type="error",
-        )
+        return jsonify(error="Your account already has a team."), 409
 
-    return render_template(
-        "login.html",
-        message=f'Team "{team_name}" created! Your account is now the admin.',
-        message_type="success",
-    )
+    return redirect(url_for("login"))
 
 
 @app.route("/logout")
