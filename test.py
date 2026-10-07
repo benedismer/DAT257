@@ -1,4 +1,5 @@
 import unittest
+import sys
 from datetime import date, time
 from unittest.mock import MagicMock, patch
 
@@ -275,6 +276,19 @@ class DatabaseTests(unittest.TestCase):
 
         self.assertIsNone(team_id)
 
+    def test_join_team_allows_only_accounts_without_existing_team_membership(self):
+        cursor = FakeCursor(returned_id=12)
+
+        with database_connection(cursor):
+            joined = database.join_team(4, 7)
+
+        self.assertTrue(joined)
+        query, parameters = cursor.executed[0]
+        self.assertIn("NOT EXISTS (", query)
+        self.assertIn("FROM Teams", query)
+        self.assertIn("FROM TeamMembers", query)
+        self.assertEqual(parameters, (4, 7, 4, 7, 7))
+
 
 class RouteTests(unittest.TestCase):
     @classmethod
@@ -431,6 +445,32 @@ class RouteTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 401)
 
+    def test_guest_cannot_join_team(self):
+        response = self.client.post("/teams/4/membership")
+
+        self.assertEqual(response.status_code, 401)
+
+    @patch.object(app_module, "join_team", return_value=True)
+    def test_logged_in_user_can_join_team(self, mock_join_team):
+        self.login_session(7)
+        response = self.client.post("/teams/4/membership")
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json, {"joined": True})
+        mock_join_team.assert_called_once_with(4, 7)
+
+    @patch.object(app_module, "join_team", return_value=False)
+    def test_user_cannot_join_a_second_team(self, mock_join_team):
+        self.login_session(7)
+        response = self.client.post("/teams/9/membership")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json,
+            {"error": "The team does not exist, or you already joined it."},
+        )
+        mock_join_team.assert_called_once_with(9, 7)
+
     @patch.object(app_module, "create_team", return_value=1)
     def test_logged_in_user_can_create_team(self, mock_create_team):
         self.login_session(7)
@@ -475,5 +515,45 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 409)
 
 
+def test_category(test_case):
+    name = test_case._testMethodName.lower()
+    if "team" in name:
+        return "Teams"
+    if "subscr" in name:
+        return "User subscriptions"
+    if "event" in name or "attend" in name:
+        return "Events"
+    if "user" in name:
+        return "Users"
+    return "Database and general behavior"
+
+
+def run_categorized_tests():
+    discovered = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
+    categorized = {}
+
+    def iter_test_cases(suite):
+        for test in suite:
+            if isinstance(test, unittest.TestSuite):
+                yield from iter_test_cases(test)
+            else:
+                yield test
+
+    for test_case in iter_test_cases(discovered):
+        category = test_category(test_case)
+        categorized.setdefault(category, unittest.TestSuite()).addTest(test_case)
+
+    all_successful = True
+    for category, suite in categorized.items():
+        print(f"\n=== {category} ===", flush=True)
+        result = unittest.TextTestRunner(
+            stream=sys.stdout,
+            verbosity=2,
+        ).run(suite)
+        all_successful = all_successful and result.wasSuccessful()
+
+    return 0 if all_successful else 1
+
+
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    raise SystemExit(run_categorized_tests())
