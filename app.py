@@ -25,6 +25,8 @@ from database.database import (
     subscribe_to_user,
     update_event,
     unsubscribe_from_user,
+    add_trash,
+    get_trash,
 )
 
 app = Flask(__name__, template_folder="templates")
@@ -179,6 +181,16 @@ def remove_event(event_id):
         return jsonify(error="Event not found or you are not its Team."), 404
     return jsonify(deleted=True), 200
 
+@app.route("/events/<int:event_id>/log", methods=["PUT", "GET"])
+def log_trash(event_id):
+    username = get_authenticated_username()
+    amount = request.args['amount']
+    type = request.args['type']
+    if username is None:
+         return jsonify(error="You must be logged in to log trash."), 401
+    if not add_trash(event_id, username, amount, type):
+        return jsonify(error="Could not log trash."), 401
+    return jsonify(get_trash()), 200
 
 @app.post("/events/<int:event_id>/attendance")
 def join_event(event_id):

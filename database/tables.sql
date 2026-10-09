@@ -40,3 +40,12 @@ CREATE TABLE Teams (
 	city TEXT,
 	country TEXT
 );
+
+CREATE TABLE Trash (
+	event_id INTEGER REFERENCES Events(id),
+	account_name TEXT REFERENCES Accounts(username),
+	amount INTEGER NOT NULL,
+	type TEXT NOT NULL,
+	UNIQUE (event_id, account_name, type)
+);
+	
