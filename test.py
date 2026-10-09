@@ -289,6 +289,18 @@ class DatabaseTests(unittest.TestCase):
         self.assertIn("FROM TeamMembers", query)
         self.assertEqual(parameters, (4, 7, 4, 7, 7))
 
+    def test_get_users_can_filter_to_current_team(self):
+        cursor = FakeCursor(rows=[])
+
+        with database_connection(cursor):
+            database.get_users("ali", 7, 7)
+
+        query, parameters = cursor.executed[0]
+        self.assertIn("EXISTS", query)
+        self.assertIn("current_membership.member_id = %s", query)
+        self.assertIn("a.username ILIKE %s", query)
+        self.assertEqual(parameters, [7, 7, "%ali%", 7, 7])
+
     def test_get_team_leaderboard_aggregates_attendance_per_member(self):
         cursor = FakeCursor(rows=[])
 
@@ -442,7 +454,15 @@ class RouteTests(unittest.TestCase):
         response = self.client.get("/users?q=ali")
 
         self.assertEqual(response.status_code, 200)
-        get_users.assert_called_once_with("ali", 7)
+        get_users.assert_called_once_with("ali", 7, None)
+
+    @patch.object(app_module, "get_users", return_value=[])
+    def test_user_directory_can_filter_to_current_team(self, get_users):
+        self.login_session(7)
+        response = self.client.get("/users?q=ali&view=team")
+
+        self.assertEqual(response.status_code, 200)
+        get_users.assert_called_once_with("ali", 7, 7)
 
     @patch.object(app_module, "add_events", return_value=21)
     @patch.object(app_module, "get_username_by_id", return_value="alice")
