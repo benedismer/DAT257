@@ -220,10 +220,16 @@ def leave_event(event_id):
 def user_list():
     search = request.args.get("q", "").strip()
     current_user_id = session.get("user_id")
+    team_only = request.args.get("view") == "team"
     return render_template(
         "Users.html",
-        users=get_users(search, current_user_id),
+        users=get_users(
+            search,
+            current_user_id,
+            current_user_id if team_only else None,
+        ),
         search=search,
+        team_only=team_only,
     )
 
 

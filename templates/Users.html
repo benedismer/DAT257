@@ -23,6 +23,21 @@
 		.page-head p { margin: 0; color: var(--text-muted); }
 
 		.search-form { display: flex; gap: 8px; }
+		.user-views { display: flex; gap: 8px; margin-top: 12px; }
+		.user-views a {
+			padding: 7px 10px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			color: var(--text-muted);
+			font-size: 0.78rem;
+			text-decoration: none;
+		}
+		.user-views a[aria-current="page"] {
+			border-color: var(--accent);
+			background: var(--accent-light);
+			color: var(--accent-hover);
+			font-weight: 600;
+		}
 		.search {
 			width: min(100%, 260px);
 			padding: 9px 12px;
@@ -77,8 +92,17 @@
 			<form class="search-form" method="get" action="{{ url_for('user_list') }}">
 				<input class="search" name="q" type="search" value="{{ search }}"
 					   placeholder="Search users..." aria-label="Search users">
+				{% if team_only %}<input type="hidden" name="view" value="team">{% endif %}
 				<button type="submit">Search</button>
 			</form>
+			<nav class="user-views" aria-label="User views">
+				<a href="{{ url_for('user_list', q=search) }}"
+				   {% if not team_only %}aria-current="page"{% endif %}>All users</a>
+				{% if current_username %}
+					<a href="{{ url_for('user_list', q=search, view='team') }}"
+					   {% if team_only %}aria-current="page"{% endif %}>My team members</a>
+				{% endif %}
+			</nav>
 		</section>
 
 		<section class="user-list" aria-live="polite">
