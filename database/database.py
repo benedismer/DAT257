@@ -489,7 +489,7 @@ def get_users(search=None, subscriber_id=None, team_member_id=None):
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """
+                f"""
                     SELECT a.id, a.username, {subscription_column} AS subscribed
                     FROM Accounts a
                     {subscription_join}
