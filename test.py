@@ -289,6 +289,24 @@ class DatabaseTests(unittest.TestCase):
         self.assertIn("FROM TeamMembers", query)
         self.assertEqual(parameters, (4, 7, 4, 7, 7))
 
+    def test_get_team_leaderboard_aggregates_attendance_per_member(self):
+        cursor = FakeCursor(rows=[])
+
+        with database_connection(cursor):
+            database.get_team_leaderboard()
+
+        query, parameters = cursor.executed[0]
+        self.assertIn("COUNT(DISTINCT ea.username)", query)
+        self.assertIn("JOIN Accounts attendee", query)
+        self.assertIn("tm.member_id = attendee.id", query)
+        self.assertIn("COUNT(e.id) AS event_count", query)
+        self.assertIn("mc.member_count * ec.event_count", query)
+        self.assertIn("* 100", query)
+        self.assertIn("SUM(ea.attendee_count)", query)
+        self.assertIn("mc.member_count", query)
+        self.assertIn("ORDER BY score DESC NULLS LAST", query)
+        self.assertEqual(parameters, [])
+
 
 class RouteTests(unittest.TestCase):
     @classmethod
@@ -302,6 +320,24 @@ class RouteTests(unittest.TestCase):
     def login_session(self, user_id=7):
         with self.client.session_transaction() as session:
             session["user_id"] = user_id
+
+    @patch.object(app_module, "get_team_leaderboard", return_value=[])
+    @patch.object(app_module, "get_team_event_ids", return_value=set())
+    @patch.object(app_module, "get_events", return_value=[])
+    @patch.object(app_module, "get_attending_event_ids", return_value=set())
+    @patch.object(app_module, "get_username_by_id", return_value=None)
+    def test_home_page_includes_team_leaderboard(
+        self,
+        get_username,
+        get_attending,
+        get_events,
+        get_team_events,
+        get_leaderboard,
+    ):
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        get_leaderboard.assert_called_once_with()
 
     @patch.object(app_module, "get_events", return_value=[])
     @patch.object(app_module, "get_attending_event_ids", return_value=set())
