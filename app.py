@@ -83,7 +83,7 @@ def index():
         attending_event_ids=attending_event_ids,
     )
 
-@app.route("/profile", methods=["GET", "POST"])
+@app.route("/profile", methods=["GET", "POST"]) # GET requests data from the server, without changing anything, POST: sends data to the server, to create or update something
 def organizer_profile():
     user_id = session.get("user_id")
     if user_id is None:
@@ -95,6 +95,41 @@ def organizer_profile():
         return redirect(url_for("login"))
 
     if request.method == "POST":
+        if request.form.get("form_action") == "change_password": #database method
+            current_password = request.form.get("current_password", "")
+            new_password = request.form.get("new_password", "")
+            password_error = None
+
+            if not current_password:
+                password_error = "Enter your current password."
+            elif not new_password:
+                password_error = "Enter a new password."
+            elif len(new_password) > 20:
+                password_error = "Your new password must be 20 characters or fewer."
+            elif login_to_account(username, current_password) != user_id:
+                password_error = "Your current password is incorrect."
+
+            if password_error:
+                return render_template(
+                    "Profile.html",
+                    user=UserInfo(id=user_id, username=username),
+                    bio=get_bio_by_id(user_id) or "",
+                    password_error=password_error,
+                    teams=_get_teams("", user_id),
+                    users=get_users("", user_id),
+                ), 400
+
+            if change_password(username, new_password) is None:
+                return render_template(
+                    "Profile.html",
+                    user=UserInfo(id=user_id, username=username),
+                    bio=get_bio_by_id(user_id) or "",
+                    password_error="Your password could not be changed. Please try again.",
+                    teams=_get_teams("", user_id),
+                    users=get_users("", user_id),
+                ), 500
+            return redirect(url_for("organizer_profile", password_saved="1"))
+
         bio = request.form.get("bio", "")
         if len(bio) > 500:
             return render_template(
@@ -102,17 +137,26 @@ def organizer_profile():
                 user=UserInfo(id=user_id, username=username),
                 bio=bio,
                 bio_error="Your bio must be 500 characters or fewer.",
+                teams=_get_teams("", user_id),
+                users=get_users("", user_id),
             ), 400
         update_bio(user_id, bio.strip())
         return redirect(url_for("organizer_profile", saved="1"))
 
+    team_search = request.args.get("team_q", "").strip() #Strip() removes whitespace
+    user_search = request.args.get("user_q", "").strip()
     return render_template(
         "Profile.html",
         user=UserInfo(id=user_id, username=username),
         bio=get_bio_by_id(user_id) or "",
         bio_saved=request.args.get("saved") == "1",
+        password_saved=request.args.get("password_saved") == "1",
+        teams=_get_teams(team_search, user_id),
+        team_search=team_search,
+        users=get_users(user_search, user_id),
+        user_search=user_search,
     )
-    
+
 
 @app.route("/List")
 def event_list():
@@ -248,6 +292,16 @@ def team_list():
     search = request.args.get("q", "").strip()
     current_user_id = session.get("user_id")
 
+    teams = _get_teams(search, current_user_id)
+
+    return render_template(
+        "Teams.html",
+        teams=teams,
+        search=search,
+    )
+
+
+def _get_teams(search, current_user_id):
     conditions = []
     parameters = [current_user_id]
     if search:
@@ -274,13 +328,7 @@ def team_list():
                 """,
                 [current_user_id, *parameters],
             )
-            teams = cur.fetchall()
-
-    return render_template(
-        "Teams.html",
-        teams=teams,
-        search=search,
-    )
+            return cur.fetchall()
 
 
 @app.post("/subscriptions/<int:user_id>")

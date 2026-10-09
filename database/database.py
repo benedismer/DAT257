@@ -332,8 +332,8 @@ def delete_old_events():
 
 def signup_for_account(username, password):
     password_hash = generate_password_hash(password)
-    with get_db_connection() as conn:
-        with conn.cursor() as cur:
+    with get_db_connection() as conn:  
+        with conn.cursor() as cur: 
             try:
                 cur.execute(
                     """
@@ -372,9 +372,9 @@ def change_password(username, password):
                 cur.execute(
                     """
                     UPDATE Accounts 
-                    SET password_hash = %s
-                    WHERE username = %s
-                    RETURNING id
+                    SET password_hash = %s 
+                    WHERE username = %s 
+                    RETURNING id 
                     """,
                     (password_hash, username),
                 )
@@ -392,9 +392,9 @@ def create_team(admin_id, team_name, city, country):
     Returns the new team id on success, or None if the account already has a
     team (UNIQUE constraint on admin_id) or the account doesn't exist.
     """
-    with get_db_connection() as conn:
-        with conn.cursor() as cur:
-            try:
+    with get_db_connection() as conn: 
+        with conn.cursor() as cur: 
+            try: 
                 cur.execute(
                     """
                     INSERT INTO Teams (admin_id, name, city, country)
@@ -447,3 +447,4 @@ def update_bio(account_id, bio):
                 (bio, account_id),
             )
             return cur.rowcount > 0
+

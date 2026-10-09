@@ -35,26 +35,74 @@
 			color: var(--text-muted);
 		}
 
-		.bio-form {
+		.profile-top-grid {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 32px;
+			align-items: start;
+		}
+
+		.profile-top-section {
+			min-width: 0;
+		}
+
+		.bio-form,
+		.password-form {
 			display: grid;
 			gap: 10px;
 			max-width: 52ch;
 		}
 
-		.bio-form textarea {
+		.bio-form[hidden] {
+			display: none;
+		}
+
+		.bio-form textarea,
+		.password-form input {
 			width: 100%;
-			min-height: 120px;
 			padding: 10px 12px;
 			border: 1px solid var(--border);
 			border-radius: var(--radius);
 			background: var(--surface);
 			color: var(--text);
 			font: 0.9rem var(--font-ui);
+		}
+
+		.bio-form textarea {
+			min-height: 120px;
 			resize: vertical;
 		}
 
-		.bio-form button {
+		.bio-display {
+			max-width: 52ch;
+			margin: 0 0 14px;
+			white-space: pre-wrap;
+		}
+
+		.edit-bio-button {
+			padding: 0;
+			border: 0;
+			background: transparent;
+			color: var(--accent);
+			font: 600 0.9rem var(--font-ui);
+			cursor: pointer;
+		}
+
+		.bio-edit-form {
+			margin-top: 12px;
+		}
+
+		.bio-empty {
+			color: var(--text-muted);
+		}
+
+		.bio-form button,
+		.password-form button {
 			justify-self: start;
+		}
+
+		.bio-form button,
+		.password-form button {
 			padding: 9px 12px;
 			border: 1px solid var(--accent);
 			border-radius: var(--radius);
@@ -62,6 +110,91 @@
 			color: #fff;
 			font: 600 0.85rem var(--font-ui);
 			cursor: pointer;
+		}
+
+		.bio-form .cancel-bio-edit {
+			background: var(--surface);
+			color: var(--accent);
+		}
+
+		.profile-section {
+			margin-top: 36px;
+		}
+
+		.profile-section-head {
+			display: flex;
+			align-items: end;
+			justify-content: space-between;
+			gap: 20px;
+			margin-bottom: 16px;
+		}
+
+		.profile-section-head h2 {
+			margin: 0;
+			font-size: 1.35rem;
+			font-weight: 600;
+		}
+
+		.profile-search {
+			display: flex;
+			gap: 8px;
+		}
+
+		.profile-search button,
+		.profile-action {
+			padding: 9px 12px;
+			border: 1px solid var(--accent);
+			border-radius: var(--radius);
+			background: var(--accent);
+			color: #fff;
+			font: 600 0.85rem var(--font-ui);
+			cursor: pointer;
+		}
+
+		.profile-search button:hover,
+		.profile-action:hover {
+			background: var(--accent-hover);
+		}
+
+		.profile-list {
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			overflow: hidden;
+		}
+
+		.profile-row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 16px;
+			padding: 16px 20px;
+		}
+
+		.profile-row + .profile-row {
+			border-top: 1px dashed var(--border);
+		}
+
+		.profile-name {
+			font-weight: 600;
+		}
+
+		.profile-detail,
+		.profile-empty {
+			color: var(--text-muted);
+		}
+
+		.profile-detail {
+			font-size: 0.9rem;
+		}
+
+		.profile-empty {
+			padding: 24px 20px;
+		}
+
+		.profile-action.unsubscribe {
+			background: var(--surface);
+			color: var(--accent);
 		}
 
 		/* label uses monospace metadata style (design.md §4) */
@@ -150,8 +283,12 @@
 
 		@media (max-width: 640px) {
 			.list-head { display: block; }
+			.profile-top-grid { grid-template-columns: 1fr; }
 			.search-label { margin-top: 20px; }
 			.search { width: 100%; }
+			.profile-section-head { display: block; }
+			.profile-search { margin-top: 14px; }
+			.profile-search .search { flex: 1; width: auto; }
 
 			.event {
 				grid-template-columns: 1fr;
@@ -165,19 +302,167 @@
 
 {% block content %}
 <div class="page">
-    <section class="list-head" aria-labelledby="page-title">
+	<div class="profile-top-grid">
+    <section class="profile-top-section" aria-labelledby="page-title">
         <div>
             <h2 id="page-title">{{ user.username }}'s Profile</h2>
 
 			<h2 id="bio-title" class="bio-title">Bio</h2>
-            <form class="bio-form" method="post" action="{{ url_for('organizer_profile') }}">
-            <label for="bio">Introduce yourself (up to 500 characters)</label>
-            <textarea id="bio" name="bio" maxlength="500">{{ bio }}</textarea>
-            {% if bio_error %}<p role="alert">{{ bio_error }}</p>{% endif %}
-            <button type="submit">Save bio</button>
-            </form>
-            {% if bio_saved %}<p role="status">Bio saved.</p>{% endif %}
+			{% if bio %}
+				<p class="bio-display">{{ bio }}</p>
+			{% else %}
+				<p class="bio-empty">No bio added yet.</p>
+			{% endif %}
+			{% if bio_saved %}<p role="status">Bio saved.</p>{% endif %}
+			{% if bio and not bio_error %}
+				<button class="edit-bio-button" id="edit-bio-button" type="button"
+						aria-expanded="false" aria-controls="bio-edit-form">Edit bio</button>
+			{% endif %}
+			{% if not bio or bio_error %}
+				<form class="bio-form bio-edit-form" id="bio-edit-form"
+					  method="post" action="{{ url_for('organizer_profile') }}">
+					<label for="bio">Introduce yourself (up to 500 characters)</label>
+					<textarea id="bio" name="bio" maxlength="500">{{ bio }}</textarea>
+					{% if bio_error %}<p role="alert">{{ bio_error }}</p>{% endif %}
+					<button type="submit">Save bio</button>
+				</form>
+			{% else %}
+				<form class="bio-form bio-edit-form" id="bio-edit-form"
+					  method="post" action="{{ url_for('organizer_profile') }}" hidden>
+					<label for="bio">Introduce yourself (up to 500 characters)</label>
+					<textarea id="bio" name="bio" maxlength="500">{{ bio }}</textarea>
+					<button type="submit">Save bio</button>
+					<button class="cancel-bio-edit" id="cancel-bio-edit" type="button">Cancel</button>
+				</form>
+			{% endif %}
         </div>
     </section>
+
+	<section class="profile-top-section" aria-labelledby="password-title">
+        <div>
+			<h2 id="password-title" class="bio-title">Change Password</h2>
+            <form class="password-form" method="post" action="{{ url_for('organizer_profile') }}">
+			<input type="hidden" name="form_action" value="change_password">
+			<label for="current-password">Current password</label>
+			<input id="current-password" name="current_password" type="password"
+				   autocomplete="current-password" required>
+			<label for="new-password">New password</label>
+			<input id="new-password" name="new_password" type="password" maxlength="20"
+				   autocomplete="new-password" required>
+            {% if password_error %}<p role="alert">{{ password_error }}</p>{% endif %}
+            <button type="submit">Change password</button>
+            </form> 
+            {% if password_saved %}<p role="status">Password changed.</p>{% endif %}
+        </div>
+    </section>
+	</div>
+
+	<section class="profile-section" aria-labelledby="teams-title">
+		<div class="profile-section-head">
+			<h2 id="teams-title">Teams</h2>
+			<form class="profile-search" method="get" action="{{ url_for('organizer_profile') }}">
+				<input class="search" name="team_q" type="search" value="{{ team_search }}"
+					   placeholder="Search teams..." aria-label="Search teams">
+				<input type="hidden" name="user_q" value="{{ user_search }}">
+				<button type="submit">Search</button>
+			</form> 
+		</div> 
+		<div class="profile-list" aria-live="polite">
+			{% for team in teams %}
+				<article class="profile-row" data-team-id="{{ team[0] }}">
+					<div>
+						<div class="profile-name">{{ team[1] }}</div>
+						{% if team[2] or team[3] %}
+							<div class="profile-detail">
+								{{ [team[2], team[3]] | select | join(", ") }}
+							</div>
+						{% endif %}
+					</div>
+					{% if team[5] %}
+						<span class="profile-detail">Your team</span>
+					{% else %}
+						<button class="profile-action team-action{% if team[4] %} unsubscribe{% endif %}"
+								type="button" data-subscribed="{{ 'true' if team[4] else 'false' }}">
+							{{ 'Unsubscribe' if team[4] else 'Subscribe' }}
+						</button>
+					{% endif %}
+				</article>
+			{% else %}
+				<div class="profile-empty">No teams were found.</div>
+			{% endfor %}
+		</div>
+	</section>
+
+	<section class="profile-section" aria-labelledby="users-title">
+		<div class="profile-section-head">
+			<h2 id="users-title">Users</h2>
+			<form class="profile-search" method="get" action="{{ url_for('organizer_profile') }}">
+				<input class="search" name="user_q" type="search" value="{{ user_search }}"
+					   placeholder="Search users..." aria-label="Search users">
+				<input type="hidden" name="team_q" value="{{ team_search }}">
+				<button type="submit">Search</button>
+			</form>
+		</div>
+		<div class="profile-list" aria-live="polite">
+			{% for listed_user in users %}
+				<article class="profile-row" data-user-id="{{ listed_user[0] }}">
+					<span class="profile-name">{{ listed_user[1] }}</span>
+					<button class="profile-action user-action{% if listed_user[2] %} unsubscribe{% endif %}"
+							type="button" data-subscribed="{{ 'true' if listed_user[2] else 'false' }}">
+						{{ 'Unsubscribe' if listed_user[2] else 'Subscribe' }}
+					</button> 
+				</article> 
+			{% else %}
+				<div class="profile-empty">No users were found.</div>
+			{% endfor %}
+		</div>
+	</section>
 </div>
+{% endblock %}
+
+{% block scripts %}
+	<script>
+		const editBioButton = document.querySelector("#edit-bio-button");
+		const bioEditForm = document.querySelector("#bio-edit-form");
+		const cancelBioEditButton = document.querySelector("#cancel-bio-edit");
+
+		editBioButton?.addEventListener("click", () => {
+			bioEditForm.hidden = false;
+			editBioButton.hidden = true;
+			editBioButton.setAttribute("aria-expanded", "true");
+			bioEditForm.querySelector("textarea").focus();
+		});
+
+		cancelBioEditButton?.addEventListener("click", () => {
+			bioEditForm.hidden = true;
+			editBioButton.hidden = false;
+			editBioButton.setAttribute("aria-expanded", "false");
+		});
+
+		async function toggleSubscription(button, row, idAttribute) {
+			const subscribed = button.dataset.subscribed === "true";
+			const response = await fetch(`/subscriptions/${row.dataset[idAttribute]}`, {
+				method: subscribed ? "DELETE" : "POST"
+			});
+			if (response.status === 401) {
+				window.location.href = "{{ url_for('login') }}";
+				return;
+			}
+			if (!response.ok) return;
+			button.dataset.subscribed = String(!subscribed);
+			button.textContent = subscribed ? "Subscribe" : "Unsubscribe";
+			button.classList.toggle("unsubscribe", !subscribed);
+		}
+
+		document.querySelectorAll("button.team-action").forEach((button) => {
+			button.addEventListener("click", () => {
+				toggleSubscription(button, button.closest(".profile-row"), "teamId");
+			});
+		});
+		document.querySelectorAll("button.user-action").forEach((button) => {
+			button.addEventListener("click", () => {
+				toggleSubscription(button, button.closest(".profile-row"), "userId");
+			});
+		});
+	</script>
 {% endblock %}

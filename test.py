@@ -289,9 +289,17 @@ class RouteTests(unittest.TestCase):
         with self.client.session_transaction() as session:
             session["user_id"] = user_id
 
+    @patch.object(
+        app_module,
+        "_get_teams",
+        return_value=[(12, "Chess Club", "Oslo", "Norway", True, False)],
+    )
+    @patch.object(app_module, "get_users", return_value=[(8, "bob", False)])
     @patch.object(app_module, "get_bio_by_id", return_value="I like cleanups.")
     @patch.object(app_module, "get_username_by_id", return_value="alice")
-    def test_logged_in_user_can_open_profile(self, get_username, get_bio):
+    def test_logged_in_user_can_open_profile(
+        self, get_username, get_bio, get_users, get_teams
+    ):
         self.login_session()
 
         response = self.client.get("/profile")
@@ -299,6 +307,14 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"alice's Profile", response.data)
         self.assertIn(b"I like cleanups.", response.data)
+        self.assertIn(b'class="bio-display"', response.data)
+        self.assertIn(b'>Edit bio</button>', response.data)
+        self.assertIn(b'id="bio-edit-form"', response.data)
+        self.assertIn(b"hidden", response.data)
+        self.assertIn(b"Chess Club", response.data)
+        self.assertIn(b"bob", response.data)
+        get_users.assert_called_once_with("", 7)
+        get_teams.assert_called_once_with("", 7)
 
     @patch.object(app_module, "update_bio", return_value=True)
     @patch.object(app_module, "get_username_by_id", return_value="alice")
@@ -311,9 +327,60 @@ class RouteTests(unittest.TestCase):
         self.assertIn("/profile?saved=1", response.headers["Location"])
         update_bio.assert_called_once_with(7, "New bio")
 
+    @patch.object(app_module, "change_password")
+    @patch.object(app_module, "login_to_account", return_value=None)
+    @patch.object(app_module, "_get_teams", return_value=[])
+    @patch.object(app_module, "get_users", return_value=[])
+    @patch.object(app_module, "get_bio_by_id", return_value="")
+    @patch.object(app_module, "get_username_by_id", return_value="alice")
+    def test_password_change_requires_correct_current_password(
+        self, get_username, get_bio, get_users, get_teams, login, change_password
+    ):
+        self.login_session()
+
+        response = self.client.post(
+            "/profile",
+            data={
+                "form_action": "change_password",
+                "current_password": "wrong",
+                "new_password": "new-password",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"Your current password is incorrect.", response.data)
+        login.assert_called_once_with("alice", "wrong")
+        change_password.assert_not_called()
+
+    @patch.object(app_module, "change_password", return_value=7)
+    @patch.object(app_module, "login_to_account", return_value=7)
+    @patch.object(app_module, "get_username_by_id", return_value="alice")
+    def test_logged_in_user_can_change_password(
+        self, get_username, login, change_password
+    ):
+        self.login_session()
+
+        response = self.client.post(
+            "/profile",
+            data={
+                "form_action": "change_password",
+                "current_password": "old-password",
+                "new_password": "new-password",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/profile?password_saved=1", response.headers["Location"])
+        login.assert_called_once_with("alice", "old-password")
+        change_password.assert_called_once_with("alice", "new-password")
+
+    @patch.object(app_module, "_get_teams", return_value=[])
+    @patch.object(app_module, "get_users", return_value=[])
     @patch.object(app_module, "update_bio")
     @patch.object(app_module, "get_username_by_id", return_value="alice")
-    def test_profile_rejects_bio_over_500_characters(self, get_username, update_bio):
+    def test_profile_rejects_bio_over_500_characters(
+        self, get_username, update_bio, get_users, get_teams
+    ):
         self.login_session()
 
         response = self.client.post("/profile", data={"bio": "x" * 501})

@@ -117,16 +117,16 @@
 				const subscribed = button.dataset.subscribed === "true";
 				const response = await fetch(`/subscriptions/${row.dataset.teamId}`, {
 					method: subscribed ? "DELETE" : "POST"
-				});
+				}); 
 				if (response.status === 401) {
 					window.location.href = "{{ url_for('login') }}";
 					return;
-				}
+				} 
 				if (!response.ok) return;
 				button.dataset.subscribed = String(!subscribed);
 				button.textContent = subscribed ? "Subscribe" : "Unsubscribe";
 				button.classList.toggle("unsubscribe", !subscribed);
 			});
-		});
-	</script>
-{% endblock %}
+		}); 
+	</script> 
+{% endblock %} 
