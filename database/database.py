@@ -325,6 +325,60 @@ def get_teams(search=None, member_id=None):
             return cur.fetchall()
 
 
+def get_team_leaderboard():
+    """Return teams ranked by average member attendance percentage."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                WITH team_members AS (
+                    SELECT id AS team_id, admin_id AS member_id
+                    FROM Teams
+                    UNION
+                    SELECT team_id, member_id
+                    FROM TeamMembers
+                ),
+                member_counts AS (
+                    SELECT team_id, COUNT(*) AS member_count
+                    FROM team_members
+                    GROUP BY team_id
+                ),
+                event_counts AS (
+                    SELECT t.id AS team_id, COUNT(e.id) AS event_count
+                    FROM Teams t
+                    LEFT JOIN Accounts admin ON admin.id = t.admin_id
+                    LEFT JOIN Events e ON e.username = admin.username
+                    GROUP BY t.id
+                ),
+                event_attendance AS (
+                    SELECT t.id AS team_id,
+                           e.id AS event_id,
+                           COUNT(DISTINCT ea.username) AS attendee_count
+                    FROM Teams t
+                    JOIN Accounts admin ON admin.id = t.admin_id
+                    JOIN Events e ON e.username = admin.username
+                    JOIN EventAttendance ea ON ea.eventid = e.id
+                    JOIN Accounts attendee ON attendee.username = ea.username
+                    JOIN team_members tm
+                        ON tm.team_id = t.id AND tm.member_id = attendee.id
+                    GROUP BY t.id, e.id
+                )
+                SELECT t.id, t.name,
+                       COALESCE(SUM(ea.attendee_count), 0)::numeric
+                           / NULLIF(mc.member_count * ec.event_count, 0) * 100
+                           AS score,
+                       mc.member_count, ec.event_count
+                FROM Teams t
+                JOIN member_counts mc ON mc.team_id = t.id
+                JOIN event_counts ec ON ec.team_id = t.id
+                LEFT JOIN event_attendance ea ON ea.team_id = t.id
+                GROUP BY t.id, t.name, mc.member_count, ec.event_count
+                ORDER BY score DESC NULLS LAST, t.name ASC
+                """
+            )
+            return cur.fetchall()
+
+
 def get_team_members(leader_id):
     """Return the members of the team owned by the account, if any."""
     with get_db_connection() as conn:
