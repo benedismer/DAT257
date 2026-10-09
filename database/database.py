@@ -545,8 +545,8 @@ def delete_old_events():
 
 def signup_for_account(username, password):
     password_hash = generate_password_hash(password)
-    with get_db_connection() as conn:
-        with conn.cursor() as cur:
+    with get_db_connection() as conn:  
+        with conn.cursor() as cur: 
             try:
                 cur.execute(
                     """
@@ -585,9 +585,9 @@ def change_password(username, password):
                 cur.execute(
                     """
                     UPDATE Accounts 
-                    SET password_hash = %s
-                    WHERE username = %s
-                    RETURNING id
+                    SET password_hash = %s 
+                    WHERE username = %s 
+                    RETURNING id 
                     """,
                     (password_hash, username),
                 )
@@ -605,9 +605,9 @@ def create_team(admin_id, team_name, city, country):
     Returns the new team id on success, or None if the account already has a
     team (UNIQUE constraint on admin_id) or the account doesn't exist.
     """
-    with get_db_connection() as conn:
-        with conn.cursor() as cur:
-            try:
+    with get_db_connection() as conn: 
+        with conn.cursor() as cur: 
+            try: 
                 cur.execute(
                     """
                     INSERT INTO Teams (admin_id, name, city, country)
@@ -641,6 +641,26 @@ def get_username_by_id(account_id):
     if row is None:
         return None
     return row[0]
+
+def get_bio_by_id(account_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT bio FROM accounts WHERE id = %s", (account_id,))
+            row = cur.fetchone()
+    if row is None:
+        return None
+    return row[0]
+
+
+def update_bio(account_id, bio):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE accounts SET bio = %s WHERE id = %s",
+                (bio, account_id),
+            )
+            return cur.rowcount > 0
+
 
 def add_trash(event_id, username, amount, type):
     with get_db_connection() as conn:

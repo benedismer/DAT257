@@ -3,7 +3,8 @@ CREATE TABLE Accounts (
 	id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 	username TEXT UNIQUE NOT NULL,
 	password_hash TEXT NOT NULL,
-	isTeam BOOLEAN NOT NULL DEFAULT FALSE -- account type: user/team
+	isTeam BOOLEAN NOT NULL DEFAULT FALSE, -- account type: user/team
+	bio TEXT
 );
 
 CREATE TABLE Events(

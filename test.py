@@ -333,6 +333,21 @@ class RouteTests(unittest.TestCase):
         with self.client.session_transaction() as session:
             session["user_id"] = user_id
 
+    @patch.object(app_module, "_get_teams", return_value=[])
+    @patch.object(app_module, "get_users", return_value=[])
+    @patch.object(app_module, "get_bio_by_id", return_value="A profile bio.")
+    @patch.object(app_module, "get_username_by_id", return_value="alice")
+    def test_logged_in_user_can_open_profile(
+        self, get_username, get_bio, get_users, get_teams
+    ):
+        self.login_session()
+
+        response = self.client.get("/profile")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"alice's Profile", response.data)
+        self.assertIn(b"A profile bio.", response.data)
+
     @patch.object(app_module, "get_team_leaderboard", return_value=[])
     @patch.object(app_module, "get_team_event_ids", return_value=set())
     @patch.object(app_module, "get_events", return_value=[])

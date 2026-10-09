@@ -3,6 +3,7 @@ import threading
 import time as time_module
 from datetime import date, time
 import psycopg
+from user_info import UserInfo
 
 from flask import Flask, jsonify, render_template, request, session, redirect, url_for
 
@@ -16,6 +17,7 @@ from database.database import (
     get_db_connection,
     get_events,
     get_attending_event_ids,
+    get_bio_by_id,
     get_team_members,
     get_team_event_ids,
     get_team_leaderboard,
@@ -30,6 +32,7 @@ from database.database import (
     stop_attending_event,
     subscribe_to_user,
     update_event,
+    update_bio,
     unsubscribe_from_user,
     add_trash,
     get_trash,
@@ -95,6 +98,81 @@ def index():
         team_event_ids=get_team_event_ids(user_id) if user_id else set(),
         leaderboard=get_team_leaderboard(),
     )
+
+@app.route("/profile", methods=["GET", "POST"]) # GET requests data from the server, without changing anything, POST: sends data to the server, to create or update something
+def organizer_profile():
+    user_id = session.get("user_id")
+    if user_id is None:
+        return redirect(url_for("login"))
+
+    username = get_username_by_id(user_id)
+    if username is None:
+        session.pop("user_id", None)
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        if request.form.get("form_action") == "change_password": #database method
+            current_password = request.form.get("current_password", "")
+            new_password = request.form.get("new_password", "")
+            password_error = None
+
+            if not current_password:
+                password_error = "Enter your current password."
+            elif not new_password:
+                password_error = "Enter a new password."
+            elif len(new_password) > 20:
+                password_error = "Your new password must be 20 characters or fewer."
+            elif login_to_account(username, current_password) != user_id:
+                password_error = "Your current password is incorrect."
+
+            if password_error:
+                return render_template(
+                    "Profile.html",
+                    user=UserInfo(id=user_id, username=username),
+                    bio=get_bio_by_id(user_id) or "",
+                    password_error=password_error,
+                    teams=_get_teams("", user_id),
+                    users=get_users("", user_id),
+                ), 400
+
+            if change_password(username, new_password) is None:
+                return render_template(
+                    "Profile.html",
+                    user=UserInfo(id=user_id, username=username),
+                    bio=get_bio_by_id(user_id) or "",
+                    password_error="Your password could not be changed. Please try again.",
+                    teams=_get_teams("", user_id),
+                    users=get_users("", user_id),
+                ), 500
+            return redirect(url_for("organizer_profile", password_saved="1"))
+
+        bio = request.form.get("bio", "")
+        if len(bio) > 500:
+            return render_template(
+                "Profile.html",
+                user=UserInfo(id=user_id, username=username),
+                bio=bio,
+                bio_error="Your bio must be 500 characters or fewer.",
+                teams=_get_teams("", user_id),
+                users=get_users("", user_id),
+            ), 400
+        update_bio(user_id, bio.strip())
+        return redirect(url_for("organizer_profile", saved="1"))
+
+    team_search = request.args.get("team_q", "").strip() #Strip() removes whitespace
+    user_search = request.args.get("user_q", "").strip()
+    return render_template(
+        "Profile.html",
+        user=UserInfo(id=user_id, username=username),
+        bio=get_bio_by_id(user_id) or "",
+        bio_saved=request.args.get("saved") == "1",
+        password_saved=request.args.get("password_saved") == "1",
+        teams=_get_teams(team_search, user_id),
+        team_search=team_search,
+        users=get_users(user_search, user_id),
+        user_search=user_search,
+    )
+
 
 @app.route("/List")
 def event_list():
@@ -250,14 +328,42 @@ def team_list():
     search = request.args.get("q", "").strip()
     member_id = session.get("user_id")
     team_members = get_team_members(member_id) if member_id is not None else []
-    if team_members:
-        return redirect(url_for("event_list"))
     return render_template(
         "Teams.html",
         teams=get_teams(search, member_id),
         team_members=team_members,
         search=search,
     )
+
+
+def _get_teams(search, current_user_id):
+    conditions = []
+    parameters = [current_user_id]
+    if search:
+        conditions.append(
+            "(t.name ILIKE %s OR COALESCE(t.city, '') ILIKE %s "
+            "OR COALESCE(t.country, '') ILIKE %s)"
+        )
+        search_value = f"%{search}%"
+        parameters.extend([search_value] * 3)
+
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                    SELECT t.admin_id, t.name, t.city, t.country,
+                           (s.id IS NOT NULL) AS subscribed,
+                           (t.admin_id = %s) AS is_owner
+                    FROM Teams t
+                    LEFT JOIN Subscriptions s
+                        ON s.team_id = t.admin_id AND s.subscriber_id = %s
+                    {where_clause}
+                    ORDER BY t.name ASC
+                """,
+                [current_user_id, *parameters],
+            )
+            return cur.fetchall()
 
 
 @app.post("/teams/<int:team_id>/membership")
