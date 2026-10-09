@@ -66,41 +66,6 @@
 			.search { flex: 1; width: auto; }
 		}
 
-
-/* Leaderboard */
-.leaderboard {
-    width: 100%;
-    border-spacing: 0 10px;
-}
-
-.leaderboard th {
-    text-align: left;
-    padding: 10px 16px;
-}
-
-.leaderboard td {
-    padding: 16px;
-    background: var(--surface);
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-}
-
-.leaderboard td:first-child {
-    width: 50px;
-    font-weight: bold;
-    border-left: 1px solid var(--border);
-    border-radius: 12px 0 0 12px;
-}
-
-.leaderboard td:last-child {
-    text-align: right;
-    border-right: 1px solid var(--border);
-    border-radius: 0 12px 12px 0;
-}
-
-.leaderboard th:last-child {
-    text-align: right;
-}
 {% endblock %}
 
 {% block content %}
@@ -138,27 +103,6 @@
 				<div class="empty-state">No teams were found.</div>
 			{% endfor %}
 		</section>
-
-		<!-- Leaderboard -->
-<h3>Leaderboard</h3>
-
-<table class="leaderboard">
-    <tr>
-        <th>Rank</th>
-        <th>Team</th>
-        <th>Points</th>
-    </tr>
-
-    {% for team in teams %}
-    <tr>
-        <td>{{ loop.index }}</td>
-        <td>{{ team[1] }}</td>
-        <td>0 pts</td>
-    </tr>
-    {% endfor %}
-
-	<tr><td>1</td><td>Team Rubby</td><td>100 pts</td></tr>								<!-- test -->
-</table>
 
 		{% if team_members %}
 			<section class="member-list" aria-labelledby="member-list-title">

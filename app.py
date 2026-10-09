@@ -18,6 +18,7 @@ from database.database import (
     get_attending_event_ids,
     get_team_members,
     get_team_event_ids,
+    get_team_leaderboard,
     get_created_events_with_attendees,
     get_teams,
     get_users,
@@ -90,6 +91,7 @@ def index():
         events=get_events(),
         attending_event_ids=attending_event_ids,
         team_event_ids=get_team_event_ids(user_id) if user_id else set(),
+        leaderboard=get_team_leaderboard(),
     )
 
 @app.route("/List")
