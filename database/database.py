@@ -445,7 +445,7 @@ def leave_team(team_id, member_id):
             return cur.rowcount > 0
 
 
-def get_users(search=None, subscriber_id=None):
+def get_users(search=None, subscriber_id=None, team_member_id=None):
     """Return accounts matching a username search and their subscription state."""
     conditions = []
     parameters = []
@@ -458,6 +458,30 @@ def get_users(search=None, subscriber_id=None):
     if search:
         conditions.append("a.username ILIKE %s")
         parameters.append(f"%{search}%")
+    if team_member_id is not None:
+        conditions.append(
+            """
+            EXISTS (
+                SELECT 1
+                FROM Teams account_team
+                WHERE (account_team.admin_id = a.id OR EXISTS (
+                    SELECT 1
+                    FROM TeamMembers account_membership
+                    WHERE account_membership.team_id = account_team.id
+                      AND account_membership.member_id = a.id
+                ))
+                  AND (
+                      account_team.admin_id = %s OR EXISTS (
+                          SELECT 1
+                          FROM TeamMembers current_membership
+                          WHERE current_membership.team_id = account_team.id
+                            AND current_membership.member_id = %s
+                      )
+                  )
+            )
+            """
+        )
+        parameters.extend([team_member_id, team_member_id])
 
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     subscription_column = "(s.id IS NOT NULL)" if subscriber_id is not None else "FALSE"
