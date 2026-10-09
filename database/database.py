@@ -489,7 +489,7 @@ def get_users(search=None, subscriber_id=None, team_member_id=None):
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                f"""
+                """
                     SELECT a.id, a.username, {subscription_column} AS subscribed
                     FROM Accounts a
                     {subscription_join}
@@ -641,3 +641,27 @@ def get_username_by_id(account_id):
     if row is None:
         return None
     return row[0]
+
+def add_trash(event_id, username, amount, type):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            try:
+                # adds new rows
+                cur.execute(
+                	"""
+                	INSERT INTO Trash(event_id, account_name, amount, type)
+                	VALUES (%s, %s, %s, %s)
+                	ON CONFLICT (event_id, account_name, type) DO UPDATE SET
+                	event_id = %s, account_name = %s, amount = Trash.amount + %s, type = %s
+                	""",
+                	(event_id, username, amount, type, event_id, username, amount, type)
+                )
+                return True
+            except:
+                return None
+def get_trash():
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(" select * from Trash ")
+            rows = cur.fetchall()
+    return rows

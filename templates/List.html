@@ -164,6 +164,15 @@
 			font: 600 0.78rem var(--font-ui);
 			cursor: pointer;
 		}
+		.trash {
+			padding: 8px 10px;
+			border: 1px solid var(--accent);
+			border-radius: var(--radius);
+			background: var(--accent);
+			color: #fff;
+			font: 600 0.78rem var(--font-ui);
+			cursor: pointer;
+		}
 
 		.event-action.leave {
 			background: var(--surface);
@@ -246,10 +255,28 @@
 					</div>
 					{% if current_username %}
 						<button class="event-action{% if event[0] in attending_event_ids %} leave{% endif %}"
-								type="button" data-event-id="{{ event[0] }}"
-								data-attending="{{ 'true' if event[0] in attending_event_ids else 'false' }}">
+							type="button" data-event-id="{{ event[0] }}"
+							data-attending="{{ 'true' if event[0] in attending_event_ids else 'false' }}">
 							{{ 'Leave' if event[0] in attending_event_ids else 'Attend' }}
 						</button>
+						<button class="trash"
+							type="button" commandfor="dialog" command="show-modal">
+    							log trash
+						</button>
+						<dialog id="dialog">
+    							<form action="/events/{{ event[0] }}/log" method="PUT">
+        							<div>
+            								<input type="number" name="amount" />
+            								<select name="type">
+                								<option value="nothing">Choose...</option>
+                								<option>kg</option>
+                								<option>bags</option>
+            								</select>
+            								<input type="submit" value="submit" />
+        							</div>
+    							</form>
+						</dialog>
+            							
 					{% endif %}
 				</article>
 			{% else %}

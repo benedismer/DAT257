@@ -48,3 +48,12 @@ CREATE TABLE TeamMembers (
 	UNIQUE (team_id, member_id),
 	UNIQUE (member_id)
 );
+
+CREATE TABLE Trash (
+	event_id INTEGER REFERENCES Events(id),
+	account_name TEXT REFERENCES Accounts(username),
+	amount INTEGER NOT NULL,
+	type TEXT NOT NULL,
+	UNIQUE (event_id, account_name, type)
+);
+	
