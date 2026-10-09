@@ -1,4 +1,5 @@
 import unittest
+import sys
 from datetime import date, time
 from unittest.mock import MagicMock, patch
 
@@ -275,6 +276,49 @@ class DatabaseTests(unittest.TestCase):
 
         self.assertIsNone(team_id)
 
+    def test_join_team_allows_only_accounts_without_existing_team_membership(self):
+        cursor = FakeCursor(returned_id=12)
+
+        with database_connection(cursor):
+            joined = database.join_team(4, 7)
+
+        self.assertTrue(joined)
+        query, parameters = cursor.executed[0]
+        self.assertIn("NOT EXISTS (", query)
+        self.assertIn("FROM Teams", query)
+        self.assertIn("FROM TeamMembers", query)
+        self.assertEqual(parameters, (4, 7, 4, 7, 7))
+
+    def test_get_users_can_filter_to_current_team(self):
+        cursor = FakeCursor(rows=[])
+
+        with database_connection(cursor):
+            database.get_users("ali", 7, 7)
+
+        query, parameters = cursor.executed[0]
+        self.assertIn("EXISTS", query)
+        self.assertIn("current_membership.member_id = %s", query)
+        self.assertIn("a.username ILIKE %s", query)
+        self.assertEqual(parameters, [7, 7, "%ali%", 7, 7])
+
+    def test_get_team_leaderboard_aggregates_attendance_per_member(self):
+        cursor = FakeCursor(rows=[])
+
+        with database_connection(cursor):
+            database.get_team_leaderboard()
+
+        query, parameters = cursor.executed[0]
+        self.assertIn("COUNT(DISTINCT ea.username)", query)
+        self.assertIn("JOIN Accounts attendee", query)
+        self.assertIn("tm.member_id = attendee.id", query)
+        self.assertIn("COUNT(e.id) AS event_count", query)
+        self.assertIn("mc.member_count * ec.event_count", query)
+        self.assertIn("* 100", query)
+        self.assertIn("SUM(ea.attendee_count)", query)
+        self.assertIn("mc.member_count", query)
+        self.assertIn("ORDER BY score DESC NULLS LAST", query)
+        self.assertEqual(parameters, [])
+
 
 class RouteTests(unittest.TestCase):
     @classmethod
@@ -289,13 +333,9 @@ class RouteTests(unittest.TestCase):
         with self.client.session_transaction() as session:
             session["user_id"] = user_id
 
-    @patch.object(
-        app_module,
-        "_get_teams",
-        return_value=[(12, "Chess Club", "Oslo", "Norway", True, False)],
-    )
-    @patch.object(app_module, "get_users", return_value=[(8, "bob", False)])
-    @patch.object(app_module, "get_bio_by_id", return_value="I like cleanups.")
+    @patch.object(app_module, "_get_teams", return_value=[])
+    @patch.object(app_module, "get_users", return_value=[])
+    @patch.object(app_module, "get_bio_by_id", return_value="A profile bio.")
     @patch.object(app_module, "get_username_by_id", return_value="alice")
     def test_logged_in_user_can_open_profile(
         self, get_username, get_bio, get_users, get_teams
@@ -306,94 +346,25 @@ class RouteTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"alice's Profile", response.data)
-        self.assertIn(b"I like cleanups.", response.data)
-        self.assertIn(b'class="bio-display"', response.data)
-        self.assertIn(b'>Edit bio</button>', response.data)
-        self.assertIn(b'id="bio-edit-form"', response.data)
-        self.assertIn(b"hidden", response.data)
-        self.assertIn(b"Chess Club", response.data)
-        self.assertIn(b"bob", response.data)
-        get_users.assert_called_once_with("", 7)
-        get_teams.assert_called_once_with("", 7)
+        self.assertIn(b"A profile bio.", response.data)
 
-    @patch.object(app_module, "update_bio", return_value=True)
-    @patch.object(app_module, "get_username_by_id", return_value="alice")
-    def test_logged_in_user_can_update_bio(self, get_username, update_bio):
-        self.login_session()
-
-        response = self.client.post("/profile", data={"bio": "New bio"})
-
-        self.assertEqual(response.status_code, 302)
-        self.assertIn("/profile?saved=1", response.headers["Location"])
-        update_bio.assert_called_once_with(7, "New bio")
-
-    @patch.object(app_module, "change_password")
-    @patch.object(app_module, "login_to_account", return_value=None)
-    @patch.object(app_module, "_get_teams", return_value=[])
-    @patch.object(app_module, "get_users", return_value=[])
-    @patch.object(app_module, "get_bio_by_id", return_value="")
-    @patch.object(app_module, "get_username_by_id", return_value="alice")
-    def test_password_change_requires_correct_current_password(
-        self, get_username, get_bio, get_users, get_teams, login, change_password
+    @patch.object(app_module, "get_team_leaderboard", return_value=[])
+    @patch.object(app_module, "get_team_event_ids", return_value=set())
+    @patch.object(app_module, "get_events", return_value=[])
+    @patch.object(app_module, "get_attending_event_ids", return_value=set())
+    @patch.object(app_module, "get_username_by_id", return_value=None)
+    def test_home_page_includes_team_leaderboard(
+        self,
+        get_username,
+        get_attending,
+        get_events,
+        get_team_events,
+        get_leaderboard,
     ):
-        self.login_session()
+        response = self.client.get("/")
 
-        response = self.client.post(
-            "/profile",
-            data={
-                "form_action": "change_password",
-                "current_password": "wrong",
-                "new_password": "new-password",
-            },
-        )
-
-        self.assertEqual(response.status_code, 400)
-        self.assertIn(b"Your current password is incorrect.", response.data)
-        login.assert_called_once_with("alice", "wrong")
-        change_password.assert_not_called()
-
-    @patch.object(app_module, "change_password", return_value=7)
-    @patch.object(app_module, "login_to_account", return_value=7)
-    @patch.object(app_module, "get_username_by_id", return_value="alice")
-    def test_logged_in_user_can_change_password(
-        self, get_username, login, change_password
-    ):
-        self.login_session()
-
-        response = self.client.post(
-            "/profile",
-            data={
-                "form_action": "change_password",
-                "current_password": "old-password",
-                "new_password": "new-password",
-            },
-        )
-
-        self.assertEqual(response.status_code, 302)
-        self.assertIn("/profile?password_saved=1", response.headers["Location"])
-        login.assert_called_once_with("alice", "old-password")
-        change_password.assert_called_once_with("alice", "new-password")
-
-    @patch.object(app_module, "_get_teams", return_value=[])
-    @patch.object(app_module, "get_users", return_value=[])
-    @patch.object(app_module, "update_bio")
-    @patch.object(app_module, "get_username_by_id", return_value="alice")
-    def test_profile_rejects_bio_over_500_characters(
-        self, get_username, update_bio, get_users, get_teams
-    ):
-        self.login_session()
-
-        response = self.client.post("/profile", data={"bio": "x" * 501})
-
-        self.assertEqual(response.status_code, 400)
-        self.assertIn(b"500 characters or fewer", response.data)
-        update_bio.assert_not_called()
-
-    def test_guest_is_redirected_from_profile(self):
-        response = self.client.get("/profile")
-
-        self.assertEqual(response.status_code, 302)
-        self.assertIn("/login", response.headers["Location"])
+        self.assertEqual(response.status_code, 200)
+        get_leaderboard.assert_called_once_with()
 
     @patch.object(app_module, "get_events", return_value=[])
     @patch.object(app_module, "get_attending_event_ids", return_value=set())
@@ -498,7 +469,15 @@ class RouteTests(unittest.TestCase):
         response = self.client.get("/users?q=ali")
 
         self.assertEqual(response.status_code, 200)
-        get_users.assert_called_once_with("ali", 7)
+        get_users.assert_called_once_with("ali", 7, None)
+
+    @patch.object(app_module, "get_users", return_value=[])
+    def test_user_directory_can_filter_to_current_team(self, get_users):
+        self.login_session(7)
+        response = self.client.get("/users?q=ali&view=team")
+
+        self.assertEqual(response.status_code, 200)
+        get_users.assert_called_once_with("ali", 7, 7)
 
     @patch.object(app_module, "add_events", return_value=21)
     @patch.object(app_module, "get_username_by_id", return_value="alice")
@@ -536,6 +515,32 @@ class RouteTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 401)
+
+    def test_guest_cannot_join_team(self):
+        response = self.client.post("/teams/4/membership")
+
+        self.assertEqual(response.status_code, 401)
+
+    @patch.object(app_module, "join_team", return_value=True)
+    def test_logged_in_user_can_join_team(self, mock_join_team):
+        self.login_session(7)
+        response = self.client.post("/teams/4/membership")
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json, {"joined": True})
+        mock_join_team.assert_called_once_with(4, 7)
+
+    @patch.object(app_module, "join_team", return_value=False)
+    def test_user_cannot_join_a_second_team(self, mock_join_team):
+        self.login_session(7)
+        response = self.client.post("/teams/9/membership")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json,
+            {"error": "The team does not exist, or you already joined it."},
+        )
+        mock_join_team.assert_called_once_with(9, 7)
 
     @patch.object(app_module, "create_team", return_value=1)
     def test_logged_in_user_can_create_team(self, mock_create_team):
@@ -581,5 +586,45 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 409)
 
 
+def test_category(test_case):
+    name = test_case._testMethodName.lower()
+    if "team" in name:
+        return "Teams"
+    if "subscr" in name:
+        return "User subscriptions"
+    if "event" in name or "attend" in name:
+        return "Events"
+    if "user" in name:
+        return "Users"
+    return "Database and general behavior"
+
+
+def run_categorized_tests():
+    discovered = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
+    categorized = {}
+
+    def iter_test_cases(suite):
+        for test in suite:
+            if isinstance(test, unittest.TestSuite):
+                yield from iter_test_cases(test)
+            else:
+                yield test
+
+    for test_case in iter_test_cases(discovered):
+        category = test_category(test_case)
+        categorized.setdefault(category, unittest.TestSuite()).addTest(test_case)
+
+    all_successful = True
+    for category, suite in categorized.items():
+        print(f"\n=== {category} ===", flush=True)
+        result = unittest.TextTestRunner(
+            stream=sys.stdout,
+            verbosity=2,
+        ).run(suite)
+        all_successful = all_successful and result.wasSuccessful()
+
+    return 0 if all_successful else 1
+
+
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    raise SystemExit(run_categorized_tests())

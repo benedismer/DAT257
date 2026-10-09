@@ -25,6 +25,7 @@ services:
     env_file:
       - ../.env
     ports:
+
       # host:container -> visit http://localhost:5000 in your browser.
       - "5050:5000"
     volumes:

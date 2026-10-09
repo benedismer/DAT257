@@ -46,6 +46,7 @@ def get_events(
     subscriber_id=None,
     attending_username=None,
     past_attending=False,
+    team_member_id=None,
 ):
     order_by = {
         "date_asc": "date ASC, time ASC, id ASC",
@@ -60,6 +61,7 @@ def get_events(
             conditions = []
             parameters = []
             subscription_join = ""
+            team_join = ""
             if subscriber_id is not None:
                 subscription_join = (
                     "JOIN Subscriptions s ON "
@@ -67,6 +69,14 @@ def get_events(
                 )
                 conditions.append("s.subscriber_id = %s")
                 parameters.append(subscriber_id)
+            if team_member_id is not None:
+                team_join = (
+                    "JOIN Teams t ON t.admin_id = a.id "
+                    "LEFT JOIN TeamMembers tm ON tm.team_id = t.id "
+                    "AND tm.member_id = %s"
+                )
+                conditions.append("(t.admin_id = %s OR tm.member_id IS NOT NULL)")
+                parameters.extend([team_member_id, team_member_id])
             if past_attending and attending_username is not None:
                 conditions.append(
                     "(EXISTS ("
@@ -108,6 +118,7 @@ def get_events(
                   FROM events e
                   LEFT JOIN accounts a ON a.username = e.username
                   {subscription_join}
+                  {team_join}
                   {where_clause}
                   ORDER BY {qualified_order}
                 """,
@@ -130,6 +141,25 @@ def get_attending_event_ids(username):
                 WHERE username = %s
                 """,
                 (username, username),
+            )
+            return {row[0] for row in cur.fetchall()}
+
+
+def get_team_event_ids(member_id):
+    """Return events created by the team this account belongs to."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT e.id
+                FROM Events e
+                JOIN Accounts a ON a.username = e.username
+                JOIN Teams t ON t.admin_id = a.id
+                LEFT JOIN TeamMembers tm
+                    ON tm.team_id = t.id AND tm.member_id = %s
+                WHERE t.admin_id = %s OR tm.member_id IS NOT NULL
+                """,
+                (member_id, member_id),
             )
             return {row[0] for row in cur.fetchall()}
 
@@ -256,7 +286,166 @@ def subscribe_to_user(subscriber_id, team_id):
             return cur.fetchone() is not None
 
 
-def get_users(search=None, subscriber_id=None):
+def get_teams(search=None, member_id=None):
+    """Return teams and whether the account has joined each team."""
+    conditions = []
+    parameters = []
+    if search:
+        conditions.append("(t.name ILIKE %s OR admin.username ILIKE %s)")
+        search_value = f"%{search}%"
+        parameters.extend([search_value, search_value])
+
+    membership_column = "FALSE"
+    membership_join = ""
+    if member_id is not None:
+        membership_join = (
+            "LEFT JOIN teammembers tm ON tm.team_id = t.id "
+            "AND tm.member_id = %s"
+        )
+        parameters.insert(0, member_id)
+        membership_column = "(t.admin_id = %s OR tm.member_id IS NOT NULL)"
+        parameters.insert(1, member_id)
+
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                    SELECT t.id, t.name, t.city, t.country,
+                           admin.username AS leader,
+                           {membership_column} AS joined
+                    FROM teams t
+                    JOIN accounts admin ON admin.id = t.admin_id
+                    {membership_join}
+                    {where_clause}
+                    ORDER BY t.name ASC
+                """,
+                parameters,
+            )
+            return cur.fetchall()
+
+
+def get_team_leaderboard():
+    """Return teams ranked by average member attendance percentage."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                WITH team_members AS (
+                    SELECT id AS team_id, admin_id AS member_id
+                    FROM Teams
+                    UNION
+                    SELECT team_id, member_id
+                    FROM TeamMembers
+                ),
+                member_counts AS (
+                    SELECT team_id, COUNT(*) AS member_count
+                    FROM team_members
+                    GROUP BY team_id
+                ),
+                event_counts AS (
+                    SELECT t.id AS team_id, COUNT(e.id) AS event_count
+                    FROM Teams t
+                    LEFT JOIN Accounts admin ON admin.id = t.admin_id
+                    LEFT JOIN Events e ON e.username = admin.username
+                    GROUP BY t.id
+                ),
+                event_attendance AS (
+                    SELECT t.id AS team_id,
+                           e.id AS event_id,
+                           COUNT(DISTINCT ea.username) AS attendee_count
+                    FROM Teams t
+                    JOIN Accounts admin ON admin.id = t.admin_id
+                    JOIN Events e ON e.username = admin.username
+                    JOIN EventAttendance ea ON ea.eventid = e.id
+                    JOIN Accounts attendee ON attendee.username = ea.username
+                    JOIN team_members tm
+                        ON tm.team_id = t.id AND tm.member_id = attendee.id
+                    GROUP BY t.id, e.id
+                )
+                SELECT t.id, t.name,
+                       COALESCE(SUM(ea.attendee_count), 0)::numeric
+                           / NULLIF(mc.member_count * ec.event_count, 0) * 100
+                           AS score,
+                       mc.member_count, ec.event_count
+                FROM Teams t
+                JOIN member_counts mc ON mc.team_id = t.id
+                JOIN event_counts ec ON ec.team_id = t.id
+                LEFT JOIN event_attendance ea ON ea.team_id = t.id
+                GROUP BY t.id, t.name, mc.member_count, ec.event_count
+                ORDER BY score DESC NULLS LAST, t.name ASC
+                """
+            )
+            return cur.fetchall()
+
+
+def get_team_members(leader_id):
+    """Return the members of the team owned by the account, if any."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT a.username, TRUE AS is_leader
+                FROM Teams t
+                JOIN Accounts a ON a.id = t.admin_id
+                WHERE t.admin_id = %s
+                UNION ALL
+                SELECT member.username, FALSE AS is_leader
+                FROM Teams t
+                JOIN TeamMembers tm ON tm.team_id = t.id
+                JOIN Accounts member ON member.id = tm.member_id
+                WHERE t.admin_id = %s AND tm.member_id <> t.admin_id
+                ORDER BY is_leader DESC, username ASC
+                """,
+                (leader_id, leader_id),
+            )
+            return cur.fetchall()
+
+
+def join_team(team_id, member_id):
+    """Join a team, returning whether a new membership was created."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO TeamMembers (team_id, member_id)
+                SELECT %s, %s
+                WHERE EXISTS (SELECT 1 FROM Teams WHERE id = %s)
+                  AND NOT EXISTS (
+                      SELECT 1 FROM Teams
+                      WHERE admin_id = %s
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM TeamMembers
+                      WHERE member_id = %s
+                  )
+                ON CONFLICT DO NOTHING
+                RETURNING id
+                """,
+                (team_id, member_id, team_id, member_id, member_id),
+            )
+            return cur.fetchone() is not None
+
+
+def leave_team(team_id, member_id):
+    """Leave a team; team leaders remain members by virtue of ownership."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM TeamMembers
+                WHERE team_id = %s AND member_id = %s
+                  AND NOT EXISTS (
+                      SELECT 1 FROM Teams
+                      WHERE id = %s AND admin_id = %s
+                  )
+                """,
+                (team_id, member_id, team_id, member_id),
+            )
+            return cur.rowcount > 0
+
+
+def get_users(search=None, subscriber_id=None, team_member_id=None):
     """Return accounts matching a username search and their subscription state."""
     conditions = []
     parameters = []
@@ -269,6 +458,30 @@ def get_users(search=None, subscriber_id=None):
     if search:
         conditions.append("a.username ILIKE %s")
         parameters.append(f"%{search}%")
+    if team_member_id is not None:
+        conditions.append(
+            """
+            EXISTS (
+                SELECT 1
+                FROM Teams account_team
+                WHERE (account_team.admin_id = a.id OR EXISTS (
+                    SELECT 1
+                    FROM TeamMembers account_membership
+                    WHERE account_membership.team_id = account_team.id
+                      AND account_membership.member_id = a.id
+                ))
+                  AND (
+                      account_team.admin_id = %s OR EXISTS (
+                          SELECT 1
+                          FROM TeamMembers current_membership
+                          WHERE current_membership.team_id = account_team.id
+                            AND current_membership.member_id = %s
+                      )
+                  )
+            )
+            """
+        )
+        parameters.extend([team_member_id, team_member_id])
 
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     subscription_column = "(s.id IS NOT NULL)" if subscriber_id is not None else "FALSE"
@@ -448,3 +661,27 @@ def update_bio(account_id, bio):
             )
             return cur.rowcount > 0
 
+
+def add_trash(event_id, username, amount, type):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            try:
+                # adds new rows
+                cur.execute(
+                	"""
+                	INSERT INTO Trash(event_id, account_name, amount, type)
+                	VALUES (%s, %s, %s, %s)
+                	ON CONFLICT (event_id, account_name, type) DO UPDATE SET
+                	event_id = %s, account_name = %s, amount = Trash.amount + %s, type = %s
+                	""",
+                	(event_id, username, amount, type, event_id, username, amount, type)
+                )
+                return True
+            except:
+                return None
+def get_trash():
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(" select * from Trash ")
+            rows = cur.fetchall()
+    return rows

@@ -150,7 +150,6 @@
 			outline: 2px solid var(--accent);
 			outline-offset: 2px;
 		}
-
 		{% block styles %}{% endblock %}
 	</style>
 </head>
@@ -177,6 +176,10 @@
 	    {#
 		<a href="{{ url_for('user_list') }}"
 		   {% if active_page == 'users' %}aria-current="page"{% endif %}>Users</a>
+		{% if not is_team_leader %}
+		<a href="{{ url_for('team_list') }}"
+		   {% if active_page == 'teams' %}aria-current="page"{% endif %}>Teams</a>
+		{% endif %}
 		{% if current_username %}
 		#}
 		{#
@@ -191,7 +194,7 @@
 		<a href="{{ url_for('login') }}"
 		   {% if active_page == 'login' %}aria-current="page"{% endif %}>Login</a>
 		<a href="{{ url_for('organizer_profile') }}" 
-		   {% if active_page == 'Profile' %}aria-current="page"{% endif %}>Profile</a>   
+		   {% if active_page == 'profile' %}aria-current="page"{% endif %}>Profile</a>
 	</nav>
 
 	<main>

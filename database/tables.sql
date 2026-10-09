@@ -41,3 +41,20 @@ CREATE TABLE Teams (
 	city TEXT,
 	country TEXT
 );
+
+CREATE TABLE TeamMembers (
+	id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	team_id INTEGER NOT NULL REFERENCES Teams(id) ON DELETE CASCADE,
+	member_id INTEGER NOT NULL REFERENCES Accounts(id) ON DELETE CASCADE,
+	UNIQUE (team_id, member_id),
+	UNIQUE (member_id)
+);
+
+CREATE TABLE Trash (
+	event_id INTEGER REFERENCES Events(id),
+	account_name TEXT REFERENCES Accounts(username),
+	amount INTEGER NOT NULL,
+	type TEXT NOT NULL,
+	UNIQUE (event_id, account_name, type)
+);
+	

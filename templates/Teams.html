@@ -21,35 +21,34 @@
 
 		.page-head h2 { margin: 0 0 6px; font-size: 1.6rem; font-weight: 600; }
 		.page-head p { margin: 0; color: var(--text-muted); }
-
 		.search-form { display: flex; gap: 8px; }
-		.search {
-			width: min(100%, 260px);
-			padding: 9px 12px;
-			border: 1px solid var(--border);
-			border-radius: var(--radius);
-			background: var(--surface);
-			color: var(--text);
-			font: 0.9rem var(--font-ui);
-		}
-		.search-form button, .team-action {
+		.search, .search-form button, .team-action {
 			padding: 9px 12px;
 			border: 1px solid var(--accent);
 			border-radius: var(--radius);
-			background: var(--accent);
-			color: #fff;
-			font: 600 0.85rem var(--font-ui);
-			cursor: pointer;
+			background: var(--surface);
+			color: var(--text);
+			font: 0.85rem var(--font-ui);
 		}
-		.search-form button:hover, .team-action:hover { background: var(--accent-hover); }
-		.team-action.unsubscribe { background: var(--surface); color: var(--accent); }
-
+		.search { border-color: var(--border); }
+		.search-form button, .team-action { background: var(--accent); color: #fff; cursor: pointer; }
+		.team-action.leave { background: var(--surface); color: var(--accent); }
 		.team-list {
 			border: 1px solid var(--border);
 			border-radius: var(--radius);
 			background: var(--surface);
 			overflow: hidden;
 		}
+		.member-list {
+			margin-top: 28px;
+			padding: 18px 20px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+		}
+		.member-list h3 { margin: 0 0 12px; font-size: 1rem; }
+		.member-list ul { margin: 0; padding-left: 20px; color: var(--text-muted); }
+		.member-list li + li { margin-top: 6px; }
 		.team-row {
 			display: flex;
 			align-items: center;
@@ -58,14 +57,15 @@
 			padding: 16px 20px;
 		}
 		.team-row + .team-row { border-top: 1px dashed var(--border); }
-		.team-name { font-weight: 600; }
-		.team-location { color: var(--text-muted); font-size: 0.9rem; }
+		.team-name { margin: 0; font-weight: 600; }
+		.team-meta { color: var(--text-muted); font-size: 0.82rem; }
 		.empty-state { padding: 24px 20px; color: var(--text-muted); }
 		@media (max-width: 640px) {
 			.page-head { display: block; }
 			.search-form { margin-top: 20px; }
 			.search { flex: 1; width: auto; }
 		}
+
 {% endblock %}
 
 {% block content %}
@@ -73,9 +73,9 @@
 		<section class="page-head" aria-labelledby="page-title">
 			<div>
 				<h2 id="page-title">Teams</h2>
-				<p>Find teams and follow the events they create.</p>
+				<p>Join a team to see events created by its leader.</p>
 			</div>
-			<form class="search-form" method="get" action="{{ request.path }}">
+			<form class="search-form" method="get" action="{{ url_for('team_list') }}">
 				<input class="search" name="q" type="search" value="{{ search }}"
 					   placeholder="Search teams..." aria-label="Search teams">
 				<button type="submit">Search</button>
@@ -86,19 +86,16 @@
 			{% for team in teams %}
 				<article class="team-row" data-team-id="{{ team[0] }}">
 					<div>
-						<div class="team-name">{{ team[1] }}</div>
-						{% if team[2] or team[3] %}
-							<div class="team-location">
-								{{ [team[2], team[3]] | select | join(", ") }}
-							</div>
-						{% endif %}
+						<p class="team-name">{{ team[1] }}</p>
+						<div class="team-meta">
+							Leader: {{ team[4] }}
+							{% if team[2] or team[3] %} · {{ team[2] or '' }}{% if team[2] and team[3] %}, {% endif %}{{ team[3] or '' }}{% endif %}
+						</div>
 					</div>
-					{% if team[5] %}
-						<span class="team-action">Your team</span>
-					{% else %}
-						<button class="team-action{% if team[4] %} unsubscribe{% endif %}"
-								type="button" data-subscribed="{{ 'true' if team[4] else 'false' }}">
-							{{ 'Unsubscribe' if team[4] else 'Subscribe' }}
+					{% if current_username %}
+						<button class="team-action{% if team[5] %} leave{% endif %}" type="button"
+								data-joined="{{ 'true' if team[5] else 'false' }}">
+							{{ 'Leave' if team[5] else 'Join' }}
 						</button>
 					{% endif %}
 				</article>
@@ -106,6 +103,17 @@
 				<div class="empty-state">No teams were found.</div>
 			{% endfor %}
 		</section>
+
+		{% if team_members %}
+			<section class="member-list" aria-labelledby="member-list-title">
+				<h3 id="member-list-title">My team members</h3>
+				<ul>
+					{% for username, is_leader in team_members %}
+						<li>{{ username }}{% if is_leader %} (leader){% endif %}</li>
+					{% endfor %}
+				</ul>
+			</section>
+		{% endif %}
 	</div>
 {% endblock %}
 
@@ -114,19 +122,19 @@
 		document.querySelectorAll(".team-action").forEach((button) => {
 			button.addEventListener("click", async () => {
 				const row = button.closest(".team-row");
-				const subscribed = button.dataset.subscribed === "true";
-				const response = await fetch(`/subscriptions/${row.dataset.teamId}`, {
-					method: subscribed ? "DELETE" : "POST"
-				}); 
+				const joined = button.dataset.joined === "true";
+				const response = await fetch(`/teams/${row.dataset.teamId}/membership`, {
+					method: joined ? "DELETE" : "POST"
+				});
 				if (response.status === 401) {
 					window.location.href = "{{ url_for('login') }}";
 					return;
-				} 
+				}
 				if (!response.ok) return;
-				button.dataset.subscribed = String(!subscribed);
-				button.textContent = subscribed ? "Subscribe" : "Unsubscribe";
-				button.classList.toggle("unsubscribe", !subscribed);
+				button.dataset.joined = String(!joined);
+				button.textContent = joined ? "Join" : "Leave";
+				button.classList.toggle("leave", !joined);
 			});
-		}); 
-	</script> 
-{% endblock %} 
+		});
+	</script>
+{% endblock %}
