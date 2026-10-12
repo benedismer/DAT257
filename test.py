@@ -244,6 +244,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(team_id, 42)
         self.assertEqual(len(cursor.executed), 2)
         self.assertIn("INSERT INTO Teams", cursor.executed[0][0])
+        self.assertIn("FROM TeamMembers", cursor.executed[0][0])
         self.assertEqual(cursor.executed[0][1], (7, "Green Gothenburg", "Gothenburg", "Sweden"))
         self.assertIn("UPDATE Accounts", cursor.executed[1][0])
         self.assertIn("isTeam = TRUE", cursor.executed[1][0])
@@ -275,6 +276,16 @@ class DatabaseTests(unittest.TestCase):
             team_id = database.create_team(7, "Duplicate Team", None, None)
 
         self.assertIsNone(team_id)
+
+    def test_create_team_returns_none_for_existing_team_member(self):
+        cursor = FakeCursor(fetchone_sequence=[None])
+
+        with database_connection(cursor):
+            team_id = database.create_team(7, "Another Team", None, None)
+
+        self.assertIsNone(team_id)
+        self.assertIn("WHERE member_id = %s", cursor.executed[0][0])
+        self.assertEqual(cursor.executed[0][1], (7, "Another Team", None, None, 7))
 
     def test_join_team_allows_only_accounts_without_existing_team_membership(self):
         cursor = FakeCursor(returned_id=12)
@@ -576,7 +587,7 @@ class RouteTests(unittest.TestCase):
         mock_create_team.assert_not_called()
 
     @patch.object(app_module, "create_team", return_value=None)
-    def test_create_team_returns_409_if_account_already_has_team(self, mock_create_team):
+    def test_create_team_renders_error_if_account_already_has_team(self, mock_create_team):
         self.login_session(7)
         response = self.client.post(
             "/create-team",
@@ -584,6 +595,8 @@ class RouteTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 409)
+        self.assertIn(b"Your account already has a team.", response.data)
+        self.assertNotIn(b'"error"', response.data)
 
 
 def test_category(test_case):

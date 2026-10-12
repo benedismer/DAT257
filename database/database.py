@@ -602,8 +602,8 @@ def change_password(username, password):
 def create_team(admin_id, team_name, city, country):
     """Create a team for an account and mark the account as isTeam=TRUE.
 
-    Returns the new team id on success, or None if the account already has a
-    team (UNIQUE constraint on admin_id) or the account doesn't exist.
+    Returns the new team id on success, or None if the account already owns or
+    belongs to a team, or the account doesn't exist.
     """
     with get_db_connection() as conn: 
         with conn.cursor() as cur: 
@@ -611,12 +611,20 @@ def create_team(admin_id, team_name, city, country):
                 cur.execute(
                     """
                     INSERT INTO Teams (admin_id, name, city, country)
-                    VALUES (%s, %s, %s, %s)
+                    SELECT %s, %s, %s, %s
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM TeamMembers
+                        WHERE member_id = %s
+                    )
                     RETURNING id
                     """,
-                    (admin_id, team_name, city or None, country or None),
+                    (admin_id, team_name, city or None, country or None, admin_id),
                 )
-                team_id = cur.fetchone()[0]
+                row = cur.fetchone()
+                if row is None:
+                    return None
+                team_id = row[0]
                 cur.execute(
                     "UPDATE Accounts SET isTeam = TRUE WHERE id = %s",
                     (admin_id,),

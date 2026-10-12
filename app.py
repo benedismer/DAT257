@@ -423,7 +423,12 @@ def create_team_route():
 
     team_id = create_team(user_id, team_name, city, country)
     if team_id is None:
-        return jsonify(error="Your account already has a team."), 409
+        return render_template(
+            "login.html",
+            message="Your account already has a team.",
+            message_type="error",
+            create_team_error=True,
+        ), 409
 
     return redirect(url_for("login"))
 
