@@ -12,6 +12,7 @@ from database.database import (
     attend_event,
     change_password,
     create_team,
+    delete_team,
     delete_event,
     delete_old_events,
     get_db_connection,
@@ -328,6 +329,16 @@ def leave_team_route(team_id):
         return jsonify(error="You must be logged in to leave a team."), 401
     leave_team(team_id, member_id)
     return jsonify(joined=False)
+
+
+@app.delete("/teams/<int:team_id>")
+def delete_team_route(team_id):
+    admin_id = session.get("user_id")
+    if admin_id is None:
+        return jsonify(error="You must be logged in to delete a team."), 401
+    if not delete_team(team_id, admin_id):
+        return jsonify(error="Team not found or you are not its owner."), 404
+    return jsonify(deleted=True)
 
 
 @app.post("/subscriptions/<int:user_id>")

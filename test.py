@@ -245,7 +245,10 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(len(cursor.executed), 2)
         self.assertIn("INSERT INTO Teams", cursor.executed[0][0])
         self.assertIn("FROM TeamMembers", cursor.executed[0][0])
-        self.assertEqual(cursor.executed[0][1], (7, "Green Gothenburg", "Gothenburg", "Sweden"))
+        self.assertEqual(
+            cursor.executed[0][1],
+            (7, "Green Gothenburg", "Gothenburg", "Sweden", 7),
+        )
         self.assertIn("UPDATE Accounts", cursor.executed[1][0])
         self.assertIn("isTeam = TRUE", cursor.executed[1][0])
         self.assertEqual(cursor.executed[1][1], (7,))
@@ -286,6 +289,28 @@ class DatabaseTests(unittest.TestCase):
         self.assertIsNone(team_id)
         self.assertIn("WHERE member_id = %s", cursor.executed[0][0])
         self.assertEqual(cursor.executed[0][1], (7, "Another Team", None, None, 7))
+
+    def test_delete_team_removes_owned_team_and_clears_team_flag(self):
+        cursor = FakeCursor(fetchone_sequence=[(7,)])
+
+        with database_connection(cursor):
+            deleted = database.delete_team(42, 7)
+
+        self.assertTrue(deleted)
+        self.assertEqual(len(cursor.executed), 2)
+        self.assertIn("DELETE FROM Teams", cursor.executed[0][0])
+        self.assertEqual(cursor.executed[0][1], (42, 7))
+        self.assertIn("isTeam = FALSE", cursor.executed[1][0])
+        self.assertEqual(cursor.executed[1][1], (7,))
+
+    def test_delete_team_returns_false_for_non_owner(self):
+        cursor = FakeCursor(fetchone_sequence=[None])
+
+        with database_connection(cursor):
+            deleted = database.delete_team(42, 7)
+
+        self.assertFalse(deleted)
+        self.assertEqual(len(cursor.executed), 1)
 
     def test_join_team_allows_only_accounts_without_existing_team_membership(self):
         cursor = FakeCursor(returned_id=12)
@@ -552,6 +577,28 @@ class RouteTests(unittest.TestCase):
             {"error": "The team does not exist, or you already joined it."},
         )
         mock_join_team.assert_called_once_with(9, 7)
+
+    def test_guest_cannot_delete_team(self):
+        response = self.client.delete("/teams/4")
+
+        self.assertEqual(response.status_code, 401)
+
+    @patch.object(app_module, "delete_team", return_value=True)
+    def test_team_owner_can_delete_team(self, mock_delete_team):
+        self.login_session(7)
+        response = self.client.delete("/teams/4")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, {"deleted": True})
+        mock_delete_team.assert_called_once_with(4, 7)
+
+    @patch.object(app_module, "delete_team", return_value=False)
+    def test_user_cannot_delete_team_they_do_not_own(self, mock_delete_team):
+        self.login_session(7)
+        response = self.client.delete("/teams/4")
+
+        self.assertEqual(response.status_code, 404)
+        mock_delete_team.assert_called_once_with(4, 7)
 
     @patch.object(app_module, "create_team", return_value=1)
     def test_logged_in_user_can_create_team(self, mock_create_team):

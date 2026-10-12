@@ -634,6 +634,28 @@ def create_team(admin_id, team_name, city, country):
                 return None  # account already owns a team
 
 
+def delete_team(team_id, admin_id):
+    """Delete a team owned by the account and clear its team status."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM Teams
+                WHERE id = %s AND admin_id = %s
+                RETURNING admin_id
+                """,
+                (team_id, admin_id),
+            )
+            deleted = cur.fetchone()
+            if deleted is None:
+                return False
+            cur.execute(
+                "UPDATE Accounts SET isTeam = FALSE WHERE id = %s",
+                (admin_id,),
+            )
+            return True
+
+
 def get_username_by_id(account_id):
     """Look up a username from an account id (used to show who is logged in).
 

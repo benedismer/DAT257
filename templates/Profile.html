@@ -396,7 +396,9 @@
 						{% endif %}
 					</div>
 					{% if team[5] and is_team_leader %}
-						<span class="profile-detail">Your team</span>
+						<button class="profile-action delete-team-action" type="button">
+							Delete team
+						</button>
 					{% else %}
 						<button class="profile-action team-action{% if team[5] %} unsubscribe{% endif %}"
 								type="button"
@@ -503,6 +505,26 @@
 				}
 			});
 		}
+
+		document.querySelectorAll("button.delete-team-action").forEach((button) => {
+			button.addEventListener("click", async () => {
+				if (!window.confirm("Delete your team? This will remove all team memberships.")) {
+					return;
+				}
+				const row = button.closest(".profile-row");
+				const response = await fetch(`/teams/${row.dataset.teamId}`, { method: "DELETE" });
+				if (response.status === 401) {
+					window.location.href = "{{ url_for('login') }}";
+					return;
+				}
+				if (!response.ok) {
+					const error = await response.json().catch(() => ({}));
+					if (error.error) window.alert(error.error);
+					return;
+				}
+				window.location.reload();
+			});
+		});
 
 		document.querySelectorAll("button.team-action").forEach((button) => {
 			button.addEventListener("click", () => {
