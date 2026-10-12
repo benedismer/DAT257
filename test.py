@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import app as app_module
 from database import database
+from picture import PICTURE_FOLDER, Picture, add_picture
 
 
 class FakeCursor:
@@ -62,6 +63,22 @@ def database_connection(cursor):
 
 
 class DatabaseTests(unittest.TestCase):
+    def test_add_picture_inserts_picture_metadata(self):
+        cursor = FakeCursor(returned_id=19)
+
+        with database_connection(cursor):
+            picture_id = database.add_picture(
+                PICTURE_FOLDER / "event-19.jpg", 7, 3, 4
+            )
+
+        self.assertEqual(picture_id, 19)
+        query, parameters = cursor.executed[0]
+        self.assertIn("INSERT INTO Pictures", query)
+        self.assertEqual(
+            parameters,
+            (str(PICTURE_FOLDER / "event-19.jpg"), 7, 3, 4),
+        )
+
     def test_add_events_inserts_event_and_creator_attendance(self):
         cursor = FakeCursor(returned_id=17)
 

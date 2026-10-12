@@ -1,5 +1,6 @@
 import os
 from datetime import date, timedelta
+from pathlib import Path
 
 import psycopg
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -39,6 +40,22 @@ def add_events(event_name, country, city, event_time, event_date, latitude, long
                 (event_id, username),
             )
             return event_id
+
+
+def add_picture(file_path, uploader_id, event_id, team_id=None):
+    """Store metadata for a picture uploaded for an event."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO Pictures
+                    (file_path, uploader_id, event_id, team_id)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (str(Path(file_path)), uploader_id, event_id, team_id),
+            )
+            return cur.fetchone()[0]
 
 def get_events(
     sort_by="date_asc",
