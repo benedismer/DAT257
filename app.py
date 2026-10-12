@@ -306,64 +306,9 @@ def leave_event(event_id):
     return jsonify(attending=False)
 
 
-@app.route("/users")
-def user_list():
-    search = request.args.get("q", "").strip()
-    current_user_id = session.get("user_id")
-    team_only = request.args.get("view") == "team"
-    return render_template(
-        "Users.html",
-        users=get_users(
-            search,
-            current_user_id,
-            current_user_id if team_only else None,
-        ),
-        search=search,
-        team_only=team_only,
-    )
-
-
-@app.route("/teams")
-def team_list():
-    search = request.args.get("q", "").strip()
-    member_id = session.get("user_id")
-    team_members = get_team_members(member_id) if member_id is not None else []
-    return render_template(
-        "Teams.html",
-        teams=get_teams(search, member_id),
-        team_members=team_members,
-        search=search,
-    )
-
-
 def _get_teams(search, current_user_id):
-    conditions = []
-    parameters = [current_user_id]
-    if search:
-        conditions.append(
-            "(t.name ILIKE %s OR COALESCE(t.city, '') ILIKE %s "
-            "OR COALESCE(t.country, '') ILIKE %s)"
-        )
-        search_value = f"%{search}%"
-        parameters.extend([search_value] * 3)
-
-    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    with get_db_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                f"""
-                    SELECT t.admin_id, t.name, t.city, t.country,
-                           (s.id IS NOT NULL) AS subscribed,
-                           (t.admin_id = %s) AS is_owner
-                    FROM Teams t
-                    LEFT JOIN Subscriptions s
-                        ON s.team_id = t.admin_id AND s.subscriber_id = %s
-                    {where_clause}
-                    ORDER BY t.name ASC
-                """,
-                [current_user_id, *parameters],
-            )
-            return cur.fetchall()
+    """Return teams with the current account's membership state."""
+    return get_teams(search, current_user_id)
 
 
 @app.post("/teams/<int:team_id>/membership")

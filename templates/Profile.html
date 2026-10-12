@@ -197,6 +197,19 @@
 			color: var(--accent);
 		}
 
+		.profile-action:disabled {
+			border-color: var(--border);
+			background: var(--bg);
+			color: var(--text-muted);
+			cursor: not-allowed;
+		}
+
+		.team-status {
+			margin: 12px 0 0;
+			color: var(--text-muted);
+			font-size: 0.85rem;
+		}
+
 		/* label uses monospace metadata style (design.md §4) */
 		.search-label {
 			display: grid;
@@ -358,6 +371,10 @@
 	</div>
 
 	<section class="profile-section" aria-labelledby="teams-title">
+		{% set joined_team = namespace(found=false) %}
+		{% for team in teams %}
+			{% if team[5] %}{% set joined_team.found = true %}{% endif %}
+		{% endfor %}
 		<div class="profile-section-head">
 			<h2 id="teams-title">Teams</h2>
 			<form class="profile-search" method="get" action="{{ url_for('organizer_profile') }}">
@@ -378,12 +395,14 @@
 							</div>
 						{% endif %}
 					</div>
-					{% if team[5] %}
+					{% if team[5] and is_team_leader %}
 						<span class="profile-detail">Your team</span>
 					{% else %}
-						<button class="profile-action team-action{% if team[4] %} unsubscribe{% endif %}"
-								type="button" data-subscribed="{{ 'true' if team[4] else 'false' }}">
-							{{ 'Unsubscribe' if team[4] else 'Subscribe' }}
+						<button class="profile-action team-action{% if team[5] %} unsubscribe{% endif %}"
+								type="button"
+								data-joined="{{ 'true' if team[5] else 'false' }}"
+								{% if not team[5] and joined_team.found %}disabled{% endif %}>
+							{{ 'Leave' if team[5] else 'Join' }}
 						</button>
 					{% endif %}
 				</article>
@@ -391,6 +410,9 @@
 				<div class="profile-empty">No teams were found.</div>
 			{% endfor %}
 		</div>
+		{% if joined_team.found and not is_team_leader %}
+			<p class="team-status" role="status">You can only belong to one team. Leave your current team before joining another.</p>
+		{% endif %}
 	</section>
 
 	<section class="profile-section" aria-labelledby="users-title">
@@ -448,15 +470,43 @@
 				window.location.href = "{{ url_for('login') }}";
 				return;
 			}
-			if (!response.ok) return;
+			if (!response.ok) {
+				const error = await response.json().catch(() => ({}));
+				if (error.error) window.alert(error.error);
+				return;
+			}
 			button.dataset.subscribed = String(!subscribed);
 			button.textContent = subscribed ? "Subscribe" : "Unsubscribe";
 			button.classList.toggle("unsubscribe", !subscribed);
 		}
 
+		async function toggleTeamMembership(button, row) {
+			const joined = button.dataset.joined === "true";
+			const response = await fetch(`/teams/${row.dataset.teamId}/membership`, {
+				method: joined ? "DELETE" : "POST"
+			});
+			if (response.status === 401) {
+				window.location.href = "{{ url_for('login') }}";
+				return;
+			}
+			if (!response.ok) {
+				const error = await response.json().catch(() => ({}));
+				if (error.error) window.alert(error.error);
+				return;
+			}
+			button.dataset.joined = String(!joined);
+			button.textContent = joined ? "Join" : "Leave";
+			button.classList.toggle("unsubscribe", !joined);
+			document.querySelectorAll("button.team-action").forEach((otherButton) => {
+				if (otherButton !== button && otherButton.dataset.joined !== "true") {
+					otherButton.disabled = !joined;
+				}
+			});
+		}
+
 		document.querySelectorAll("button.team-action").forEach((button) => {
 			button.addEventListener("click", () => {
-				toggleSubscription(button, button.closest(".profile-row"), "teamId");
+				toggleTeamMembership(button, button.closest(".profile-row"));
 			});
 		});
 		document.querySelectorAll("button.user-action").forEach((button) => {
