@@ -3,6 +3,7 @@ import threading
 import time as time_module
 from datetime import date, time
 import psycopg
+from user_info import UserInfo
 
 from flask import Flask, jsonify, render_template, request, session, redirect, url_for
 
@@ -10,20 +11,31 @@ from database.database import (
     add_events,
     attend_event,
     change_password,
+    create_team,
     delete_event,
     delete_old_events,
     get_db_connection,
     get_events,
     get_attending_event_ids,
+    get_bio_by_id,
+    get_team_members,
+    get_team_event_ids,
+    get_team_leaderboard,
     get_created_events_with_attendees,
+    get_teams,
     get_users,
+    join_team,
+    leave_team,
     get_username_by_id,
     login_to_account,
     signup_for_account,
     stop_attending_event,
     subscribe_to_user,
     update_event,
+    update_bio,
     unsubscribe_from_user,
+    add_trash,
+    get_trash,
 )
 
 app = Flask(__name__, template_folder="templates")
@@ -41,13 +53,18 @@ def inject_current_username():
     database is unreachable) so a DB hiccup never breaks page rendering.
     """
     username = None
+    is_team_leader = False
     user_id = session.get("user_id")
     if user_id is not None:
         try:
             username = get_username_by_id(user_id)
+            is_team_leader = bool(get_team_members(user_id))
         except Exception:
             username = None
-    return {"current_username": username}
+    return {
+        "current_username": username,
+        "is_team_leader": is_team_leader,
+    }
 
 
 def cleanup_old_events_daily():
@@ -71,13 +88,91 @@ def start_cleanup_scheduler():
 
 @app.route("/")
 def index():
-    username = get_username_by_id(session.get("user_id"))
+    user_id = session.get("user_id")
+    username = get_username_by_id(user_id)
     attending_event_ids = get_attending_event_ids(username) if username else set()
     return render_template(
         "index.html",
         events=get_events(),
         attending_event_ids=attending_event_ids,
+        team_event_ids=get_team_event_ids(user_id) if user_id else set(),
+        leaderboard=get_team_leaderboard(),
     )
+
+@app.route("/profile", methods=["GET", "POST"]) # GET requests data from the server, without changing anything, POST: sends data to the server, to create or update something
+def organizer_profile():
+    user_id = session.get("user_id")
+    if user_id is None:
+        return redirect(url_for("login"))
+
+    username = get_username_by_id(user_id)
+    if username is None:
+        session.pop("user_id", None)
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        if request.form.get("form_action") == "change_password": #database method
+            current_password = request.form.get("current_password", "")
+            new_password = request.form.get("new_password", "")
+            password_error = None
+
+            if not current_password:
+                password_error = "Enter your current password."
+            elif not new_password:
+                password_error = "Enter a new password."
+            elif len(new_password) > 20:
+                password_error = "Your new password must be 20 characters or fewer."
+            elif login_to_account(username, current_password) != user_id:
+                password_error = "Your current password is incorrect."
+
+            if password_error:
+                return render_template(
+                    "Profile.html",
+                    user=UserInfo(id=user_id, username=username),
+                    bio=get_bio_by_id(user_id) or "",
+                    password_error=password_error,
+                    teams=_get_teams("", user_id),
+                    users=get_users("", user_id),
+                ), 400
+
+            if change_password(username, new_password) is None:
+                return render_template(
+                    "Profile.html",
+                    user=UserInfo(id=user_id, username=username),
+                    bio=get_bio_by_id(user_id) or "",
+                    password_error="Your password could not be changed. Please try again.",
+                    teams=_get_teams("", user_id),
+                    users=get_users("", user_id),
+                ), 500
+            return redirect(url_for("organizer_profile", password_saved="1"))
+
+        bio = request.form.get("bio", "")
+        if len(bio) > 500:
+            return render_template(
+                "Profile.html",
+                user=UserInfo(id=user_id, username=username),
+                bio=bio,
+                bio_error="Your bio must be 500 characters or fewer.",
+                teams=_get_teams("", user_id),
+                users=get_users("", user_id),
+            ), 400
+        update_bio(user_id, bio.strip())
+        return redirect(url_for("organizer_profile", saved="1"))
+
+    team_search = request.args.get("team_q", "").strip() #Strip() removes whitespace
+    user_search = request.args.get("user_q", "").strip()
+    return render_template(
+        "Profile.html",
+        user=UserInfo(id=user_id, username=username),
+        bio=get_bio_by_id(user_id) or "",
+        bio_saved=request.args.get("saved") == "1",
+        password_saved=request.args.get("password_saved") == "1",
+        teams=_get_teams(team_search, user_id),
+        team_search=team_search,
+        users=get_users(user_search, user_id),
+        user_search=user_search,
+    )
+
 
 @app.route("/List")
 def event_list():
@@ -93,10 +188,11 @@ def event_list():
         sort_by = "date_asc"
     search = request.args.get("q", "").strip()
     subscribed_only = request.args.get("view") == "subscribed"
+    team_only = request.args.get("view") == "teams"
     attending_only = request.args.get("view") == "attending"
     past_attending = request.args.get("view") == "past-attending"
     user_id = session.get("user_id")
-    if (subscribed_only or attending_only or past_attending) and user_id is None:
+    if (subscribed_only or team_only or attending_only or past_attending) and user_id is None:
         return redirect(url_for("login"))
     username = get_username_by_id(user_id) if user_id is not None else None
     attending_event_ids = get_attending_event_ids(username) if username else set()
@@ -106,6 +202,7 @@ def event_list():
         user_id if subscribed_only else None,
         username if past_attending else None,
         past_attending,
+        team_member_id=user_id if team_only else None,
     )
     if attending_only:
         events = [event for event in events if event[0] in attending_event_ids]
@@ -116,6 +213,7 @@ def event_list():
         sort_options=sort_options,
         search=search,
         subscribed_only=subscribed_only,
+        team_only=team_only,
         attending_only=attending_only,
         past_attending=past_attending,
         attending_event_ids=attending_event_ids,
@@ -165,7 +263,7 @@ def edit_event(event_id):
         return jsonify(error="Invalid event data."), 400
 
     if event_id is None:
-        return jsonify(error="Event not found or you are not its organizer."), 404
+        return jsonify(error="Event not found or you are not its Team."), 404
     return jsonify(id=event_id), 200
 
 
@@ -175,9 +273,19 @@ def remove_event(event_id):
     if username is None:
         return jsonify(error="You must be logged in to delete an event."), 401
     if not delete_event(event_id, username):
-        return jsonify(error="Event not found or you are not its organizer."), 404
+        return jsonify(error="Event not found or you are not its Team."), 404
     return jsonify(deleted=True), 200
 
+@app.route("/events/<int:event_id>/log", methods=["PUT", "GET"])
+def log_trash(event_id):
+    username = get_authenticated_username()
+    amount = request.args['amount']
+    type = request.args['type']
+    if username is None:
+         return jsonify(error="You must be logged in to log trash."), 401
+    if not add_trash(event_id, username, amount, type):
+        return jsonify(error="Could not log trash."), 401
+    return jsonify(get_trash()), 200
 
 @app.post("/events/<int:event_id>/attendance")
 def join_event(event_id):
@@ -198,15 +306,28 @@ def leave_event(event_id):
     return jsonify(attending=False)
 
 
-@app.route("/users")
-def user_list():
-    search = request.args.get("q", "").strip()
-    current_user_id = session.get("user_id")
-    return render_template(
-        "Users.html",
-        users=get_users(search, current_user_id),
-        search=search,
-    )
+def _get_teams(search, current_user_id):
+    """Return teams with the current account's membership state."""
+    return get_teams(search, current_user_id)
+
+
+@app.post("/teams/<int:team_id>/membership")
+def join_team_route(team_id):
+    member_id = session.get("user_id")
+    if member_id is None:
+        return jsonify(error="You must be logged in to join a team."), 401
+    if not join_team(team_id, member_id):
+        return jsonify(error="The team does not exist, or you already joined it."), 400
+    return jsonify(joined=True), 201
+
+
+@app.delete("/teams/<int:team_id>/membership")
+def leave_team_route(team_id):
+    member_id = session.get("user_id")
+    if member_id is None:
+        return jsonify(error="You must be logged in to leave a team."), 401
+    leave_team(team_id, member_id)
+    return jsonify(joined=False)
 
 
 @app.post("/subscriptions/<int:user_id>")
@@ -248,25 +369,64 @@ def login():
             account_id = signup_for_account(username, password)
             if account_id:
                 account_id = login_to_account(username, password)
-        elif action == "change_pw":
-            if username == get_username_by_id(session.get("user_id")):
-                account_id = change_password(username, password)    
-            else:
-                return render_template("unsuccessful_pw_change.html")
         else:
             return jsonify(error="Invalid action"), 400
-        if account_id: # successful login
-            session["user_id"] = account_id          # remembers the user
+        if account_id:
+            session["user_id"] = account_id
             if action == "login":
-                return render_template("successful_login.html")
+                return render_template(
+                    "login.html",
+                    message="You successfully logged in. Welcome back!",
+                    message_type="success",
+                )
             if action == "signup":
-                return render_template("successful_signup.html")
-            if action == "change_pw":
-                return render_template("successful_pw_change.html")
+                return render_template(
+                    "login.html",
+                    message="Account created! Welcome to Rubby.",
+                    message_type="success",
+                )
+        else:
+            if action == "login":
+                return render_template(
+                    "login.html",
+                    message="Incorrect username or password. Please try again.",
+                    message_type="error",
+                )
+            if action == "signup":
+                return render_template(
+                    "login.html",
+                    message="That username is already taken. Please choose another.",
+                    message_type="error",
+                )
     except (psycopg.Error) as exc:
-        return jsonify(error=f"Invalid login data: {exc}"), 401
+        return render_template(
+            "login.html",
+            message=f"Something went wrong: {exc}",
+            message_type="error",
+        )
 
-    return render_template("login.html") # FIX: is this correct?
+    return render_template("login.html")
+
+@app.post("/create-team")
+def create_team_route():
+    user_id = session.get("user_id")
+    if user_id is None:
+        return jsonify(error="You must be logged in to create a team."), 401
+
+    data = request.get_json(silent=True) or request.form
+    team_name = str(data.get("team_name", "")).strip()
+    if not team_name:
+        return jsonify(error="Team name is required."), 400
+
+    city = str(data.get("city", "")).strip() or None
+    country = str(data.get("country", "")).strip() or None
+
+    team_id = create_team(user_id, team_name, city, country)
+    if team_id is None:
+        return jsonify(error="Your account already has a team."), 409
+
+    return redirect(url_for("login"))
+
 
 @app.route("/logout")
 def logout():
@@ -274,7 +434,7 @@ def logout():
     # KeyError if they weren't logged in. After this the banner shows "guest".
     session.pop("user_id", None)
     # Send them back to the home page.
-    return redirect(url_for("index"))
+    return redirect(url_for("login"))
 
 @app.post("/events")
 def create_event():

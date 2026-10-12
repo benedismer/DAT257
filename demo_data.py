@@ -18,7 +18,7 @@ DEMO_USER = UserInfo(
             city="Gothenburg",
             time=time(10, 0),
             date=date.today() + timedelta(days=3),
-            organizer="Green Crew",
+            team="Green Crew",
             attendees=["alex", "sam", "robin"],
         ),
         Event(
@@ -28,7 +28,7 @@ DEMO_USER = UserInfo(
             city="Gothenburg",
             time=time(14, 30),
             date=date.today() + timedelta(days=10),
-            organizer="Alex",
+            team="Alex",
             attendees=["alex", "casey"],
         ),
         Event(
@@ -38,7 +38,7 @@ DEMO_USER = UserInfo(
             city="Gothenburg",
             time=time(13, 0),
             date=date.today() - timedelta(days=7),
-            organizer="Green Crew",
+            team="Green Crew",
             attendees=["alex", "sam"],
         ),
     ],
@@ -50,14 +50,14 @@ DEMO_USER = UserInfo(
             city="Gothenburg",
             time=time(12, 0),
             date=date.today() + timedelta(days=21),
-            organizer="alex",
+            team="alex",
             attendees=["alex", "robin"],
         ),
     ],
 )
 
 
-DEMO_ORGANIZER_EVENTS = [
+DEMO_TEAM_EVENTS = [
     *DEMO_USER.events_attending,
     Event(
         id=103,
@@ -66,7 +66,7 @@ DEMO_ORGANIZER_EVENTS = [
         city="Gothenburg",
         time=time(9, 0),
         date=date.today() + timedelta(days=17),
-        organizer="Green Crew",
+        team="Green Crew",
         attendees=["sam"],
     ),
     Event(
@@ -76,7 +76,7 @@ DEMO_ORGANIZER_EVENTS = [
         city="Gothenburg",
         time=time(11, 0),
         date=date.today() + timedelta(days=5),
-        organizer="Other Organizer",
+        team="Other Team",
         attendees=[],
     ),
     DEMO_USER.events_attending[-1],

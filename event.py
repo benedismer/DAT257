@@ -17,11 +17,11 @@ class Event:
     city: str
     time: Time
     date: Date
-    organizer: str = ""
+    team: str = ""
     attendees: list[str] = field(default_factory=list)
 
 
-def add_events(event_name, country, city, time, date, organizer="", attendees=None):
+def add_events(event_name, country, city, time, date, team="", attendees=None):
     """Create an in-memory event without inserting anything into PostgreSQL."""
     return Event(
         id=0,
@@ -30,7 +30,7 @@ def add_events(event_name, country, city, time, date, organizer="", attendees=No
         city=city,
         time=time,
         date=date,
-        organizer=organizer,
+        team=team,
         attendees=list(attendees or []),
     )
 
