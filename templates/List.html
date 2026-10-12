@@ -155,6 +155,24 @@
 			line-height: 1.5;
 		}
 
+		.event-pictures {
+			grid-column: 2 / -1;
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+			gap: 8px;
+			margin-top: 4px;
+		}
+
+		.event-pictures img {
+			display: block;
+			width: 100%;
+			aspect-ratio: 4 / 3;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			object-fit: cover;
+			background: var(--bg);
+		}
+
 		.event-action {
 			padding: 8px 10px;
 			border: 1px solid var(--accent);
@@ -245,7 +263,9 @@
 				<article class="event"
 						 data-search="{{ event[0] }} {{ event[1] }} {{ event[2] or '' }} {{ event[3] or '' }}">
 					<div class="event-id">#{{ event[0] }}</div>
-					<h3 class="event-name">{{ event[1] }}</h3>
+					<h3 class="event-name">
+						<a href="{{ url_for('event_detail', event_id=event[0]) }}">{{ event[1] }}</a>
+					</h3>
 					<div class="event-location">
 						{{ event[3] or '' }}{% if event[3] and event[2] %}, {% endif %}{{ event[2] or '' }}
 					</div>

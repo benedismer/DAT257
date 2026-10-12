@@ -1,11 +1,28 @@
 import os
 import threading
 import time as time_module
+from uuid import uuid4
 from datetime import date, time
 import psycopg
 from user_info import UserInfo
+from werkzeug.utils import secure_filename
 
-from flask import Flask, jsonify, render_template, request, session, redirect, url_for
+from flask import (
+    Flask,
+    jsonify,
+    render_template,
+    request,
+    send_from_directory,
+    session,
+    redirect,
+    url_for,
+)
+from picture import (
+    PICTURE_FOLDER,
+    dummy_pictures_for_event,
+    dummy_pictures_for_team,
+    dummy_pictures_for_user,
+)
 
 from database.database import (
     add_events,
@@ -17,9 +34,13 @@ from database.database import (
     delete_old_events,
     get_db_connection,
     get_events,
+    get_events_by_team,
+    get_events_by_username,
+    get_event_by_id,
     get_attending_event_ids,
     get_bio_by_id,
     get_team_members,
+    get_team_profile,
     get_team_event_ids,
     get_team_leaderboard,
     get_created_events_with_attendees,
@@ -28,6 +49,7 @@ from database.database import (
     join_team,
     leave_team,
     get_username_by_id,
+    get_user_profile,
     login_to_account,
     signup_for_account,
     stop_attending_event,
@@ -219,6 +241,79 @@ def event_list():
         past_attending=past_attending,
         attending_event_ids=attending_event_ids,
     )
+
+
+@app.route("/events/<int:event_id>")
+def event_detail(event_id):
+    event = get_event_by_id(event_id)
+    if event is None:
+        return render_template("Event.html", event=None), 404
+    username = get_username_by_id(session.get("user_id"))
+    attending_event_ids = get_attending_event_ids(username) if username else set()
+    return render_template(
+        "Event.html",
+        event=event,
+        is_attending=event_id in attending_event_ids,
+        pictures=dummy_pictures_for_event(event_id),
+    )
+
+
+@app.get("/users/<int:user_id>")
+def user_detail(user_id):
+    profile = get_user_profile(user_id)
+    if profile is None:
+        return render_template("User.html", profile=None), 404
+    return render_template(
+        "User.html",
+        profile=profile,
+        events=get_events_by_username(profile[1]),
+        pictures=dummy_pictures_for_user(profile[0]),
+    )
+
+
+@app.get("/teams/<int:team_id>")
+def team_detail(team_id):
+    team, members = get_team_profile(team_id)
+    if team is None:
+        return render_template("Team.html", team=None), 404
+    return render_template(
+        "Team.html",
+        team=team,
+        members=members,
+        events=get_events_by_team(team_id),
+        pictures=dummy_pictures_for_team(team_id),
+    )
+
+
+@app.post("/events/<int:event_id>/pictures")
+def upload_event_picture(event_id):
+    user_id = session.get("user_id")
+    username = get_username_by_id(user_id) if user_id is not None else None
+    if username is None:
+        return redirect(url_for("login"))
+    event = get_event_by_id(event_id)
+    if event is None:
+        return render_template("Event.html", event=None), 404
+    if event_id not in get_attending_event_ids(username):
+        return redirect(url_for("event_detail", event_id=event_id))
+
+    upload = request.files.get("picture")
+    filename = secure_filename(upload.filename) if upload else ""
+    if not upload or not filename:
+        return redirect(url_for("event_detail", event_id=event_id))
+    extension = os.path.splitext(filename)[1].lower()
+    if extension not in {".gif", ".jpeg", ".jpg", ".png", ".webp"}:
+        return redirect(url_for("event_detail", event_id=event_id))
+
+    PICTURE_FOLDER.mkdir(exist_ok=True)
+    upload.save(PICTURE_FOLDER / f"event-{event_id}-{uuid4().hex}{extension}")
+    return redirect(url_for("event_detail", event_id=event_id))
+
+
+@app.get("/pictures/<path:filename>")
+def serve_picture(filename):
+    """Serve local dummy pictures without involving the database."""
+    return send_from_directory(PICTURE_FOLDER, filename)
 
 
 @app.route("/created-events")

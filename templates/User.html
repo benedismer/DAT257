@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{% if profile %}{{ profile[1] }}{% else %}User not found{% endif %}{% endblock %}
+{% block styles %}
+		.page { width: min(860px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 72px; }
+		.card, .feed { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 24px; }
+		.feed { margin-top: 24px; }
+		h2, h3 { margin-top: 0; }
+		.meta { color: var(--text-muted); }
+		.feed-item { padding: 16px 0; }
+		.feed-item + .feed-item { border-top: 1px dashed var(--border); }
+		.feed-item h3 { margin-bottom: 6px; }
+		.feed-item p { margin: 4px 0; color: var(--text-muted); }
+		.empty { color: var(--text-muted); }
+		.picture-feed { margin-top: 24px; }
+		.picture-feed img {
+			display: block;
+			width: 100%;
+			height: auto;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+		}
+		.picture-feed a + a { display: block; margin-top: 20px; }
+{% endblock %}
+{% block content %}
+	<div class="page">
+		{% if not profile %}
+			<section class="card"><h2>User not found</h2></section>
+		{% else %}
+			<section class="card">
+				<h2>{{ profile[1] }}</h2>
+				{% if profile[2] %}
+					<p>{{ profile[2] }}</p>
+				{% else %}
+					<p class="meta">This user has not added a bio.</p>
+				{% endif %}
+				{% if profile[3] %}
+					<p class="meta">Team:
+						<a href="{{ url_for('team_detail', team_id=profile[3]) }}">{{ profile[4] }}</a>
+					</p>
+				{% else %}
+					<p class="meta">This user is not currently in a team.</p>
+				{% endif %}
+			</section>
+			<section class="feed" aria-labelledby="user-feed-title">
+				<h3 id="user-feed-title">{{ profile[1] }}'s events</h3>
+				{% for event in events %}
+					<article class="feed-item">
+						<h3><a href="{{ url_for('event_detail', event_id=event[0]) }}">{{ event[1] }}</a></h3>
+						<p>{{ event[5] }}{% if event[4] %} at {{ event[4] }}{% endif %}</p>
+						<p>{{ event[3] or '' }}{% if event[3] and event[2] %}, {% endif %}{{ event[2] or '' }}</p>
+					</article>
+				{% else %}
+					<p class="empty">No events posted yet.</p>
+				{% endfor %}
+			</section>
+			<section class="feed picture-feed" aria-labelledby="user-picture-feed-title">
+				<h3 id="user-picture-feed-title">{{ profile[1] }}'s pictures</h3>
+				{% for picture in pictures %}
+					<a href="{{ url_for('serve_picture', filename=picture.file_path) }}"
+					   target="_blank" rel="noopener">
+						<img src="{{ url_for('serve_picture', filename=picture.file_path) }}"
+							 alt="Picture uploaded by {{ profile[1] }}">
+					</a>
+				{% else %}
+					<p class="empty">No pictures uploaded yet.</p>
+				{% endfor %}
+			</section>
+		{% endif %}
+	</div>
+{% endblock %}

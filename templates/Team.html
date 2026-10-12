@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{% if team %}{{ team[1] }}{% else %}Team not found{% endif %}{% endblock %}
+{% block styles %}
+		.page { width: min(860px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 72px; }
+		.card, .feed { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 24px; }
+		.feed { margin-top: 24px; }
+		h2, h3 { margin-top: 0; }
+		.meta, .empty { color: var(--text-muted); }
+		.member-list { margin: 0; padding-left: 20px; }
+		.feed-item { padding: 16px 0; }
+		.feed-item + .feed-item { border-top: 1px dashed var(--border); }
+		.feed-item h3 { margin-bottom: 6px; }
+		.feed-item p { margin: 4px 0; color: var(--text-muted); }
+		.picture-feed { margin-top: 24px; }
+		.picture-feed img {
+			display: block;
+			width: 100%;
+			height: auto;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+		}
+		.picture-feed a + a { display: block; margin-top: 20px; }
+{% endblock %}
+{% block content %}
+	<div class="page">
+		{% if not team %}
+			<section class="card"><h2>Team not found</h2></section>
+		{% else %}
+			<section class="card">
+				<h2>{{ team[1] }}</h2>
+				<p class="meta">Leader:
+					<a href="{{ url_for('user_detail', user_id=team[4]) }}">{{ team[5] }}</a>
+				</p>
+				{% if team[2] or team[3] %}
+					<p class="meta">{{ team[2] or '' }}{% if team[2] and team[3] %}, {% endif %}{{ team[3] or '' }}</p>
+				{% endif %}
+				<h3>Members</h3>
+				<ul class="member-list">
+					{% for member in members %}
+						<li><a href="{{ url_for('user_detail', user_id=member[0]) }}">{{ member[1] }}</a>{% if member[2] %} (leader){% endif %}</li>
+					{% endfor %}
+				</ul>
+			</section>
+			<section class="feed" aria-labelledby="team-feed-title">
+				<h3 id="team-feed-title">Team event feed</h3>
+				{% for event in events %}
+					<article class="feed-item">
+						<h3><a href="{{ url_for('event_detail', event_id=event[0]) }}">{{ event[1] }}</a></h3>
+						<p>Posted by <a href="{{ url_for('user_detail', user_id=event[9]) }}">{{ event[8] }}</a></p>
+						<p>{{ event[5] }}{% if event[4] %} at {{ event[4] }}{% endif %}</p>
+					</article>
+				{% else %}
+					<p class="empty">No team events posted yet.</p>
+				{% endfor %}
+			</section>
+			<section class="feed picture-feed" aria-labelledby="team-picture-feed-title">
+				<h3 id="team-picture-feed-title">{{ team[1] }}'s pictures</h3>
+				{% for picture in pictures %}
+					<a href="{{ url_for('serve_picture', filename=picture.file_path) }}"
+					   target="_blank" rel="noopener">
+						<img src="{{ url_for('serve_picture', filename=picture.file_path) }}"
+							 alt="Picture from {{ team[1] }}">
+					</a>
+				{% else %}
+					<p class="empty">No pictures uploaded yet.</p>
+				{% endfor %}
+			</section>
+		{% endif %}
+	</div>
+{% endblock %}

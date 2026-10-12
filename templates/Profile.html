@@ -388,7 +388,9 @@
 			{% for team in teams %}
 				<article class="profile-row" data-team-id="{{ team[0] }}">
 					<div>
-						<div class="profile-name">{{ team[1] }}</div>
+						<div class="profile-name">
+							<a href="{{ url_for('team_detail', team_id=team[0]) }}">{{ team[1] }}</a>
+						</div>
 						{% if team[2] or team[3] %}
 							<div class="profile-detail">
 								{{ [team[2], team[3]] | select | join(", ") }}
@@ -430,7 +432,9 @@
 		<div class="profile-list" aria-live="polite">
 			{% for listed_user in users %}
 				<article class="profile-row" data-user-id="{{ listed_user[0] }}">
-					<span class="profile-name">{{ listed_user[1] }}</span>
+					<span class="profile-name">
+						<a href="{{ url_for('user_detail', user_id=listed_user[0]) }}">{{ listed_user[1] }}</a>
+					</span>
 					<button class="profile-action user-action{% if listed_user[2] %} unsubscribe{% endif %}"
 							type="button" data-subscribed="{{ 'true' if listed_user[2] else 'false' }}">
 						{{ 'Unsubscribe' if listed_user[2] else 'Subscribe' }}
