@@ -17,15 +17,11 @@ from flask import (
     redirect,
     url_for,
 )
-from picture import (
-    PICTURE_FOLDER,
-    dummy_pictures_for_event,
-    dummy_pictures_for_team,
-    dummy_pictures_for_user,
-)
+from picture import PICTURE_FOLDER
 
 from database.database import (
     add_events,
+    add_picture,
     attend_event,
     change_password,
     create_team,
@@ -59,6 +55,9 @@ from database.database import (
     unsubscribe_from_user,
     add_trash,
     get_trash,
+    pictures_for_event,
+    pictures_for_team,
+    pictures_for_user,
 )
 
 app = Flask(__name__, template_folder="templates")
@@ -253,8 +252,8 @@ def event_detail(event_id):
     return render_template(
         "Event.html",
         event=event,
-        is_attending=event_id in attending_event_ids,
-        pictures=dummy_pictures_for_event(event_id),
+        is_attending=event_id in attending_event_ids, 
+        pictures=pictures_for_event(event_id), 
     )
 
 
@@ -267,7 +266,7 @@ def user_detail(user_id):
         "User.html",
         profile=profile,
         events=get_events_by_username(profile[1]),
-        pictures=dummy_pictures_for_user(profile[0]),
+        pictures=pictures_for_user(profile[0]),
     )
 
 
@@ -281,16 +280,16 @@ def team_detail(team_id):
         team=team,
         members=members,
         events=get_events_by_team(team_id),
-        pictures=dummy_pictures_for_team(team_id),
+        pictures=pictures_for_team(team_id),
     )
 
 
 @app.post("/events/<int:event_id>/pictures")
-def upload_event_picture(event_id):
-    user_id = session.get("user_id")
+def upload_event_picture(event_id): 
+    user_id = session.get("user_id") 
     username = get_username_by_id(user_id) if user_id is not None else None
-    if username is None:
-        return redirect(url_for("login"))
+    if username is None: 
+        return redirect(url_for("login")) 
     event = get_event_by_id(event_id)
     if event is None:
         return render_template("Event.html", event=None), 404
@@ -306,7 +305,14 @@ def upload_event_picture(event_id):
         return redirect(url_for("event_detail", event_id=event_id))
 
     PICTURE_FOLDER.mkdir(exist_ok=True)
-    upload.save(PICTURE_FOLDER / f"event-{event_id}-{uuid4().hex}{extension}")
+    filename = f"event-{event_id}-{uuid4().hex}{extension}"
+    picture_path = PICTURE_FOLDER / filename
+    upload.save(picture_path)
+    try:
+        add_picture(filename, user_id, event_id)
+    except psycopg.Error:
+        picture_path.unlink(missing_ok=True)
+        raise
     return redirect(url_for("event_detail", event_id=event_id))
 
 

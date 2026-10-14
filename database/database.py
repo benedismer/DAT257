@@ -4,6 +4,7 @@ from pathlib import Path
 
 import psycopg
 from werkzeug.security import generate_password_hash, check_password_hash
+from picture import Picture
 # Psycopg is the most popular PostgreSQL database adapter for Python
 # https://www.psycopg.org/psycopg3/docs/basic/usage.html for method usages
 
@@ -15,7 +16,6 @@ def get_db_connection():
         user=os.getenv("POSTGRES_USER", "postgres"),
         password=os.getenv("POSTGRES_PASSWORD", "Your_Postgres_Password"),
     )
-
 
 
 def add_events(event_name, country, city, event_time, event_date, latitude, longitude, username):
@@ -838,3 +838,73 @@ def get_event_by_id(event_id):
                 (event_id,),
             )
             return cur.fetchone()
+
+def pictures_for_team(team_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT p.id, p.file_path, p.uploader_id, p.event_id, p.team_id
+                FROM Pictures p
+                WHERE p.team_id = %s
+                ORDER BY p.id
+                """,
+                (team_id,),
+            )
+            return [
+                Picture(
+                    id=row[0],
+                    file_path=Path(row[1]),
+                    uploader_id=row[2],
+                    event_id=row[3],
+                    team_id=row[4],
+                )
+                for row in cur.fetchall()
+            ]
+
+
+def pictures_for_user(user_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT p.id, p.file_path, p.uploader_id, p.event_id, p.team_id
+                FROM Pictures p
+                WHERE p.uploader_id = %s
+                ORDER BY p.id
+                """,
+                (user_id,),
+            )
+            return [
+                Picture(
+                    id=row[0],
+                    file_path=Path(row[1]),
+                    uploader_id=row[2],
+                    event_id=row[3],
+                    team_id=row[4],
+                )
+                for row in cur.fetchall()
+            ]
+
+def pictures_for_event(event_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT p.id, p.file_path, p.uploader_id, p.event_id, p.team_id
+                FROM Pictures p
+                WHERE p.event_id = %s
+                ORDER BY p.id
+                """,
+                (event_id,),
+            )
+            return [
+                Picture(
+                    id=row[0],
+                    file_path=Path(row[1]),
+                    uploader_id=row[2],
+                    event_id=row[3],
+                    team_id=row[4],
+                )
+                for row in cur.fetchall()
+            ]

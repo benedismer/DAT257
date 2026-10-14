@@ -1,3 +1,6 @@
+from io import BytesIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 import sys
 from datetime import date, time
@@ -78,6 +81,28 @@ class DatabaseTests(unittest.TestCase):
             parameters,
             (str(PICTURE_FOLDER / "event-19.jpg"), 7, 3, 4),
         )
+
+    def test_picture_queries_return_picture_objects_for_the_requested_owner(self):
+        row = (13, "event-3-photo.png", 7, 3, 4)
+        queries = (
+            (database.pictures_for_event, 3, "p.event_id"),
+            (database.pictures_for_user, 7, "p.uploader_id"),
+            (database.pictures_for_team, 4, "p.team_id"),
+        )
+
+        for picture_query, identifier, filter_column in queries:
+            with self.subTest(filter_column=filter_column):
+                cursor = FakeCursor(rows=[row])
+
+                with database_connection(cursor):
+                    pictures = picture_query(identifier)
+
+                self.assertEqual(len(pictures), 1)
+                self.assertEqual(pictures[0].file_path, Path(row[1]))
+                self.assertEqual(pictures[0].id, row[0])
+                query, parameters = cursor.executed[0]
+                self.assertIn(filter_column + " = %s", query)
+                self.assertEqual(parameters, (identifier,))
 
     def test_add_events_inserts_event_and_creator_attendance(self):
         cursor = FakeCursor(returned_id=17)
@@ -438,6 +463,32 @@ class RouteTests(unittest.TestCase):
     def login_session(self, user_id=7):
         with self.client.session_transaction() as session:
             session["user_id"] = user_id
+
+    @patch.object(app_module, "get_attending_event_ids", return_value={5})
+    @patch.object(app_module, "get_event_by_id", return_value=(5, "Event"))
+    @patch.object(app_module, "get_username_by_id", return_value="alice")
+    @patch.object(app_module, "add_picture")
+    def test_event_picture_upload_saves_file_and_records_relative_path(
+        self, add_picture_mock, get_username, get_event, get_attending
+    ):
+        with TemporaryDirectory() as directory:
+            picture_folder = Path(directory)
+            with patch.object(app_module, "PICTURE_FOLDER", picture_folder):
+                self.login_session()
+                response = self.client.post(
+                    "/events/5/pictures",
+                    data={"picture": (BytesIO(b"image data"), "photo.png")},
+                    content_type="multipart/form-data",
+                )
+
+            self.assertEqual(response.status_code, 302)
+            add_picture_mock.assert_called_once()
+            filename, uploader_id, event_id = add_picture_mock.call_args.args
+            self.assertTrue(filename.startswith("event-5-"))
+            self.assertTrue(filename.endswith(".png"))
+            self.assertEqual(uploader_id, 7)
+            self.assertEqual(event_id, 5)
+            self.assertTrue((picture_folder / filename).is_file())
 
     @patch.object(app_module, "_get_teams", return_value=[])
     @patch.object(app_module, "get_users", return_value=[])
