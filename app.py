@@ -284,13 +284,15 @@ def log_trash(event_id):
     type = request.args['type']
     if username is None:
          return jsonify(error="You must be logged in to log trash."), 401
+    if amount is '':
+        return jsonify(error="Amount must not be NULL"), 400
     if int(amount) < 1:
         return jsonify(error="Amount must be greater than 1"), 400
-    if type == None:
+    if type is '':
         return jsonify(error="Type must not be NULL"), 400
     if not add_trash(event_id, username, amount, type):
         return jsonify(error="Could not log trash."), 401
-    return jsonify(get_trash()), 204
+    return '', 204
 
 @app.post("/events/<int:event_id>/attendance")
 def join_event(event_id):

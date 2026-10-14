@@ -288,14 +288,14 @@
 							{{ 'Leave' if event[0] in attending_event_ids else 'Attend' }}
 						</button>
 						<button class="trash"
-							type="button" commandfor="dialog" command="show-modal">
+							type="button" commandfor="dialog{{ event[0] }}" command="show-modal">
     							log trash
 						</button>
-						<dialog id="dialog">
-    							<form action="/events/{{ event[0] }}/log" method="PUT">
+						<dialog id="dialog{{ event [0] }}">
+    							<form action="/events/{{ event[0] }}/log" method="PUT" class="test">
         							<div>
             								<input type="number" name="amount" class="number-input"
-            								min="1"/>
+            								min="1" required/>
             								<select name="type">
                 								<option>kg</option>
                 								<option>bags</option>
@@ -335,6 +335,14 @@
 				button.classList.toggle("leave", !attending);
 			});
 		});
+
+		document.querySelectorAll("dialog").forEach((dialog) => {
+			dialog.childNodes.forEach((form) => {
+        			form.addEventListener("submit", () => {
+        				dialog.close();
+        			});
+    			});
+        	});
 
 		sortInput.addEventListener("change", (event) => {
 			const url = new URL(window.location.href);
