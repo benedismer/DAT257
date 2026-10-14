@@ -284,9 +284,13 @@ def log_trash(event_id):
     type = request.args['type']
     if username is None:
          return jsonify(error="You must be logged in to log trash."), 401
+    if int(amount) < 1:
+        return jsonify(error="Amount must be greater than 1"), 400
+    if type == None:
+        return jsonify(error="Type must not be NULL"), 400
     if not add_trash(event_id, username, amount, type):
         return jsonify(error="Could not log trash."), 401
-    return jsonify(get_trash()), 200
+    return jsonify(get_trash()), 204
 
 @app.post("/events/<int:event_id>/attendance")
 def join_event(event_id):
@@ -504,6 +508,10 @@ def health():
         database_version=db_version,
         map_api_key_configured=bool(os.environ.get("MAP_API_KEY")),
     )
+
+@app.route("/debug/trash")
+def debug_trash():
+	return jsonify(get_trash()), 200
 
 
 if __name__ == "__main__":
