@@ -372,6 +372,59 @@ class DatabaseTests(unittest.TestCase):
         self.assertIn("ORDER BY score DESC NULLS LAST", query)
         self.assertEqual(parameters, [])
 
+    def test_get_team_profile_returns_team_and_leader_and_members(self):
+        team = (4, "Book Club", "Gothenburg", "Sweden", 7, "alice")
+        members = [(7, "alice", True), (9, "bob", False)]
+        cursor = FakeCursor(rows=members, fetchone_sequence=[team])
+
+        with database_connection(cursor):
+            profile, team_members = database.get_team_profile(4)
+
+        self.assertEqual(profile, team)
+        self.assertEqual(team_members, members)
+        self.assertEqual(len(cursor.executed), 2)
+        team_query, team_parameters = cursor.executed[0]
+        self.assertIn("t.id, t.name, t.city, t.country, t.admin_id", team_query)
+        self.assertIn("t.admin_id = a.id", team_query)
+        self.assertEqual(team_parameters, (4,))
+        members_query, members_parameters = cursor.executed[1]
+        self.assertIn("FROM TeamMembers tm", members_query)
+        self.assertEqual(members_parameters, (4, 4))
+
+    def test_get_team_profile_returns_empty_result_for_missing_team(self):
+        cursor = FakeCursor(fetchone_sequence=[None])
+
+        with database_connection(cursor):
+            profile, members = database.get_team_profile(404)
+
+        self.assertIsNone(profile)
+        self.assertEqual(members, [])
+        self.assertEqual(len(cursor.executed), 1)
+
+    def test_get_event_by_id_returns_event_row(self):
+        event = (
+            12, "Book swap", "Sweden", "Gothenburg",
+            "18:30:00", "2026-10-14", 57.7, 11.97, "alice",
+        )
+        cursor = FakeCursor(fetchone_sequence=[event])
+
+        with database_connection(cursor):
+            result = database.get_event_by_id(12)
+
+        self.assertEqual(result, event)
+        query, parameters = cursor.executed[0]
+        self.assertIn("FROM Events e", query)
+        self.assertIn("WHERE e.id = %s", query)
+        self.assertEqual(parameters, (12,))
+
+    def test_get_event_by_id_returns_none_for_missing_event(self):
+        cursor = FakeCursor(fetchone_sequence=[None])
+
+        with database_connection(cursor):
+            result = database.get_event_by_id(404)
+
+        self.assertIsNone(result)
+
 
 class RouteTests(unittest.TestCase):
     @classmethod

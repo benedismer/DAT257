@@ -732,3 +732,109 @@ def get_trash():
             cur.execute(" select * from Trash ")
             rows = cur.fetchall()
     return rows
+
+
+def get_events_by_team(team_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT e.id, e.event_name, e.country, e.city,
+                       e.time::text, e.date::text,
+                       e.latitude, e.longitude, e.username, a.id
+                FROM Events e
+                JOIN Accounts a ON a.username = e.username
+                JOIN Teams t ON t.admin_id = a.id
+                WHERE t.id = %s
+                ORDER BY e.date ASC, e.time ASC, e.id ASC
+                """,
+                (team_id,),
+            )
+            return cur.fetchall()
+
+
+def get_events_by_username(username):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT e.id, e.event_name, e.country, e.city,
+                        e.time::text, e.date::text,
+                        e.latitude, e.longitude, e.username, a.id
+                FROM Events e
+                JOIN Accounts a ON a.username = e.username
+                WHERE e.username = %s
+                ORDER BY e.date ASC, e.time ASC, e.id ASC
+                """,
+                (username,),
+            )
+            return cur.fetchall()
+
+def get_team_profile(team_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT t.id, t.name, t.city, t.country, t.admin_id, a.username
+                FROM Teams t
+                JOIN Accounts a ON t.admin_id = a.id
+                WHERE t.id = %s
+                """,
+                (team_id,),
+            )
+            team = cur.fetchone()
+            if team is None:
+                return None, []
+
+            cur.execute(
+                """
+                SELECT leader.id, leader.username, TRUE AS is_leader
+                FROM Teams t
+                JOIN Accounts leader ON leader.id = t.admin_id
+                WHERE t.id = %s
+                UNION ALL
+                SELECT member.id, member.username, FALSE AS is_leader
+                FROM TeamMembers tm
+                JOIN Teams t ON t.id = tm.team_id
+                JOIN Accounts member ON member.id = tm.member_id
+                WHERE t.id = %s AND tm.member_id <> t.admin_id
+                ORDER BY is_leader DESC, username ASC
+                """,
+                (team_id, team_id),
+            )
+            members = cur.fetchall()
+            return team, members
+
+def get_user_profile(user_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT a.id, a.username, a.bio, t.id, t.name
+                FROM Accounts a
+                LEFT JOIN Teams t ON t.admin_id = a.id
+                OR EXISTS (
+                    SELECT 1
+                    FROM TeamMembers tm
+                    WHERE tm.team_id = t.id AND tm.member_id = a.id
+                )
+                WHERE a.id = %s
+                """,
+                (user_id,),
+            )
+            return cur.fetchone()
+
+def get_event_by_id(event_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT e.id, e.event_name, e.country, e.city,
+                       e.time::text, e.date::text,
+                       e.latitude, e.longitude, e.username
+                FROM Events e
+                WHERE e.id = %s
+                """,
+                (event_id,),
+            )
+            return cur.fetchone()
