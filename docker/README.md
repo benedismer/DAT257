@@ -187,11 +187,11 @@ Run `make help` at any time to see every available command.
 | `make up` | Start the whole project (app + database) in the background |
 | `make up-build` | Same, but rebuild images first (use after changing `requirements.txt` or the `Dockerfile`) |
 | `make down` | Stop and remove the containers, **keeping** your database data |
-| `make teardown` | Stop and remove containers **and delete the database data** (fresh start) |
+| `make teardown` | Stop and remove containers, delete the database data, and remove stored pictures (fresh start) |
 | `make restart` | `down` then `up` |
 | `make ps` / `make status` | Show whether containers are running |
 | `make logs` | Watch the logs from all containers (Ctrl-C to stop watching) |
-| `make seed` | Populate the database with fake accounts, teams, and events |
+| `make seed` | Populate the database with fake accounts, teams, events, and seeded pictures |
 | `make seed-reset` | Wipe all data, then repopulate with fake data (fresh seed) |
 
 A normal day: `make up`, do your work (edits reload automatically), then
@@ -212,14 +212,14 @@ these:
 | `make up` | `docker compose -f docker/docker-compose.yml up -d` |
 | `make up-build` | `docker compose -f docker/docker-compose.yml up -d --build` |
 | `make down` | `docker compose -f docker/docker-compose.yml down` |
-| `make teardown` | `docker compose -f docker/docker-compose.yml down -v` |
+| `make teardown` | `docker compose -f docker/docker-compose.yml down -v` and remove image files from `pictures/` |
 | `make restart` | `docker compose -f docker/docker-compose.yml down && docker compose -f docker/docker-compose.yml up -d` |
 | `make build` | `docker compose -f docker/docker-compose.yml build` |
 | `make rebuild` | `docker compose -f docker/docker-compose.yml build --no-cache` |
 | `make ps` | `docker compose -f docker/docker-compose.yml ps` |
 | `make logs` | `docker compose -f docker/docker-compose.yml logs -f` |
-| `make seed` | `idk` |
-| `make seed-reset` | `idk` |
+| `make seed` | `docker compose -f docker/docker-compose.yml exec web python seed.py` |
+| `make seed-reset` | `docker compose -f docker/docker-compose.yml exec web python seed.py --reset` |
 
 > Tip: `docker compose` reads variables from `.env` in the directory you run it
 > from, so run these from the **project root** (where your `.env` lives).
@@ -234,14 +234,14 @@ This is the core of the dev workflow. The difference between `down` and
 - **`make down`** — stops and removes the containers but **keeps your database
   data** (stored in a Docker volume called `pgdata`). Next `make up` picks up
   where you left off. Use this most of the time.
-- **`make teardown`** — removes the containers **and deletes the database
-  volume**, giving you a completely fresh database next time. Use this when you
-  want a clean slate or something got into a weird state.
+- **`make teardown`** — removes the containers, deletes the database volume, and
+  removes picture files, giving you a completely fresh environment next time.
+  Use this when you want a clean slate or something got into a weird state.
 
 ```bash
 make up          # tear up: start everything
 make down        # tear down: stop, but remember the data
-make teardown    # full tear down: stop AND wipe the database
+make teardown    # full tear down: stop, wipe the database, and remove pictures
 ```
 
 Raw equivalents: `docker compose -f docker/docker-compose.yml up -d`,

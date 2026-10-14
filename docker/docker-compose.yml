@@ -44,7 +44,7 @@ services:
     # env_file above to initialize the database — no need to repeat them here.
     volumes:
       # Named volume persists database data across `make down` / restarts.
-      # It is only removed by `make teardown` (docker compose down -v).
+      # It is removed by `make teardown` (docker compose down -v).
       - pgdata:/var/lib/postgresql/data
       # Auto-load the schema. This SQL file is run by the
       # postgres image the FIRST time the database initializes (i.e. when the

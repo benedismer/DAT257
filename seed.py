@@ -13,10 +13,16 @@ Pass --reset to wipe all existing rows before inserting:
 
 import sys
 from datetime import date, time, timedelta
+from pathlib import Path
+from shutil import copy2
 
 from werkzeug.security import generate_password_hash
 
 from database.database import get_db_connection
+
+PICTURE_SEED_FOLDER = Path(__file__).resolve().parent / "Picture_Seed"
+PICTURE_FOLDER = Path(__file__).resolve().parent / "pictures"
+PICTURE_SUFFIXES = {".gif", ".jpeg", ".jpg", ".png", ".webp"}
 
 # ---------------------------------------------------------------------------
 # Seed data
@@ -100,12 +106,24 @@ ATTENDANCE = [
     (9, "bob"),     # past event
 ]
 
+PHOTOS = [
+    # (event index, uploader username, team username, filename)
+    (0, "alice", "GreenCrew", "river-cleanup-alice.png"),
+    (0, "bob", "GreenCrew", "river-cleanup-bob.png"),
+    (1, "charlie", "EcoRiders", "park-sorting-session-charlie.png"),
+    (3, "diana", "CleanCoast", "beach-sweep-diana.png"),
+    (4, "bob", "CleanCoast", "harbour-rubbish-run-bob.png"),
+    (6, "eve", "GreenCrew", "neighbourhood-recycling-eve.png"),
+    (8, "alice", "GreenCrew", "autumn-park-cleanup-alice.png"),
+]
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 def reset(cur):
     """Delete all rows in dependency order."""
+    cur.execute("DELETE FROM pictures")
     cur.execute("DELETE FROM eventattendance")
     cur.execute("DELETE FROM teammembers")
     cur.execute("DELETE FROM events")
@@ -135,6 +153,7 @@ def insert_accounts(cur):
 
 
 def insert_teams(cur, admin_ids):
+    team_ids = {}
     for username, name, city, country in TEAMS:
         admin_id = admin_ids[username]
         cur.execute(
@@ -148,7 +167,10 @@ def insert_teams(cur, admin_ids):
             """,
             (admin_id, name, city, country),
         )
+        cur.execute("SELECT id FROM teams WHERE admin_id = %s", (admin_id,))
+        team_ids[username] = cur.fetchone()[0]
     print(f"  ✓ {len(TEAMS)} teams")
+    return team_ids
 
 
 def insert_events(cur):
@@ -223,6 +245,39 @@ def insert_attendance(cur, event_ids, account_ids):
         )
     print(f"  ✓ {len(all_pairs)} attendance records")
 
+def insert_picture(cur, event_id, account_id, team_id, filename):
+    cur.execute(
+        """
+        INSERT INTO pictures (file_path, uploader_id, event_id, team_id)
+        VALUES (%s, %s, %s, %s)
+        """,
+        (filename, account_id, event_id, team_id),
+    )
+
+
+def copy_picture_seed():
+    PICTURE_FOLDER.mkdir(exist_ok=True)
+    for path in PICTURE_FOLDER.iterdir():
+        if path.is_file() and path.suffix.lower() in PICTURE_SUFFIXES:
+            path.unlink()
+
+    for source in sorted(PICTURE_SEED_FOLDER.iterdir()):
+        if source.is_file() and source.suffix.lower() in PICTURE_SUFFIXES:
+            copy2(source, PICTURE_FOLDER / source.name)
+    print(f"  ✓ {len(PHOTOS)} picture files copied")
+
+
+def insert_pictures(cur, event_ids, account_ids, team_ids):
+    for event_index, uploader, team, filename in PHOTOS:
+        insert_picture(
+            cur,
+            event_ids[event_index],
+            account_ids[uploader],
+            team_ids[team],
+            filename,
+        )
+    print(f"  ✓ {len(PHOTOS)} picture records")
+
 
 # ---------------------------------------------------------------------------
 # Main
@@ -240,11 +295,13 @@ def main():
 
             print("Inserting seed data...")
             account_ids = insert_accounts(cur)
-            insert_teams(cur, account_ids)
+            team_ids = insert_teams(cur, account_ids)
             event_ids = insert_events(cur)
             insert_subscriptions(cur, account_ids)
             insert_team_members(cur, account_ids)
             insert_attendance(cur, event_ids, account_ids)
+            copy_picture_seed()
+            insert_pictures(cur, event_ids, account_ids, team_ids)
 
     print("\nDone! All accounts use password: password")
     print("Accounts:", ", ".join(u for u, _ in ACCOUNTS))
