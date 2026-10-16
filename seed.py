@@ -27,6 +27,7 @@ PASSWORD_HASH = generate_password_hash("password")
 
 # (username, isTeam)
 ACCOUNTS = [
+    ("frank", False),
     ("alice",      False),
     ("bob",        False),
     ("charlie",    False),
@@ -68,6 +69,7 @@ EVENTS = [
     ("Old town sweep",         "Sweden", "Gothenburg", time(15, 0),  today + timedelta(days=2),   57.7042, 11.9672, "bob"),
     ("Autumn park cleanup",    "Sweden", "Gothenburg", time(13, 0),  today - timedelta(days=7),   57.7010, 11.9710, "GreenCrew"),
     ("Spring canal run",       "Sweden", "Gothenburg", time(10, 30), today - timedelta(days=30),  57.7080, 11.9730, "alice"),
+    ("Ocean cleanup",          "Sweden", "Gothenburg", time(10, 0),  today + timedelta(days=4),   57.7089, 11.9746, "OceanHeroes"),
 ]
 
 # (subscriber_username, team_username)  — users following teams
@@ -88,6 +90,7 @@ TEAM_MEMBERS = [
     ("charlie", "EcoRiders"),
     ("diana", "CleanCoast"),
     ("eve", "GreenCrew"),
+    ("frank", "OceanHeroes"),
 ]
 
 # (event index from EVENTS list above, attendee_username)
