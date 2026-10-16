@@ -192,6 +192,34 @@
 			cursor: pointer;
 		}
 
+		select {
+			padding: 8px 10px;
+			border: 1px solid var(--accent);
+			border-radius: var(--radius);
+			background: #fff;
+			color: var(--accent);
+			font: 600 0.78rem var(--font-ui);
+			cursor: pointer;
+		}
+
+		.number-input {
+			padding: 8px 10px;
+			border: 1px solid var(--accent);
+			border-radius: var(--radius);
+			background: #fff;
+			color: var(--accent);
+			font: 600 0.78rem var(--font-ui);
+			cursor: pointer;
+		}
+
+		dialog {
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			overflow: hidden;
+		}
+
+
 		.event-action.leave {
 			background: var(--surface);
 			color: var(--accent);
@@ -280,19 +308,19 @@
 							{{ 'Leave' if event[0] in attending_event_ids else 'Attend' }}
 						</button>
 						<button class="trash"
-							type="button" commandfor="dialog" command="show-modal">
+							type="button" commandfor="dialog{{ event[0] }}" command="show-modal">
     							log trash
 						</button>
-						<dialog id="dialog">
-    							<form action="/events/{{ event[0] }}/log" method="PUT">
+						<dialog id="dialog{{ event [0] }}">
+    							<form action="/events/{{ event[0] }}/log" method="PUT" class="test">
         							<div>
-            								<input type="number" name="amount" />
+            								<input type="number" name="amount" class="number-input"
+            								min="1" required/>
             								<select name="type">
-                								<option value="nothing">Choose...</option>
                 								<option>kg</option>
                 								<option>bags</option>
             								</select>
-            								<input type="submit" value="submit" />
+            								<input type="submit" value="submit" class="trash"/>
         							</div>
     							</form>
 						</dialog>
@@ -327,6 +355,14 @@
 				button.classList.toggle("leave", !attending);
 			});
 		});
+
+		document.querySelectorAll("dialog").forEach((dialog) => {
+			dialog.childNodes.forEach((form) => {
+        			form.addEventListener("submit", () => {
+        				dialog.close();
+        			});
+    			});
+        	});
 
 		sortInput.addEventListener("change", (event) => {
 			const url = new URL(window.location.href);
