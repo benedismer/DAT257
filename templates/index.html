@@ -40,8 +40,13 @@
 			background: var(--surface);
 		}
 
-		.leaderboard {
+		.leaderboard-scroll {
+			max-height: 250px;		/* number of teams showing */
+			overflow-y: auto;
 			margin-top: 32px;
+		}
+
+		.leaderboard {
 			width: 100%;
 			border-spacing: 0 10px;
 		}
@@ -176,6 +181,8 @@
 		<div id="map"></div>
 		<p class="map-hint"># click the map to drop a new event</p>
 
+		<div class="leaderboard-scroll">
+
 		<table class="leaderboard">
 			<caption>Team leaderboard</caption>
 			<thead>
@@ -197,6 +204,7 @@
 				{% endfor %}
 			</tbody>
 		</table>
+		</div>
 	</div>
 {% endblock %}
 
