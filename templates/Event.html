@@ -9,7 +9,7 @@
 			padding: 40px 0 72px;
 		}
 
-		.event-card, .picture-section {
+		.event-card, .picture-section, .trash-section {
 			border: 1px solid var(--border);
 			border-radius: var(--radius);
 			background: var(--surface);
@@ -19,6 +19,17 @@
 		.event-card h2 { margin: 0 0 16px; }
 		.event-info { color: var(--text-muted); }
 		.event-info p { margin: 6px 0; }
+
+		.event-bio {
+			margin-top: 16px;
+			padding-top: 16px;
+			border-top: 1px solid var(--border);
+			color: var(--text-muted);
+			font-size: 0.92rem;
+			line-height: 1.6;
+			white-space: pre-wrap;
+		}
+
 		.event-action, .upload-button {
 			padding: 9px 12px;
 			border: 1px solid var(--accent);
@@ -32,6 +43,14 @@
 			background: var(--surface);
 			color: var(--accent);
 		}
+		.trash-section { margin-top: 24px; }
+		.trash-collected {
+			margin: 0;
+			font-size: 1rem;
+			color: var(--text-muted);
+		}
+		.trash-collected strong { color: var(--text); margin-right: 6px; }
+
 		.picture-section { margin-top: 24px; }
 		.picture-section h3 { margin-top: 0; }
 		.upload-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
@@ -66,12 +85,22 @@
 					<p><strong>Time:</strong> {{ event[4] }}</p>
 					<p><strong>Location:</strong> {{ event[3] or '' }}{% if event[3] and event[2] %}, {% endif %}{{ event[2] or '' }}</p>
 				</div>
+				{% if event[9] %}
+					<div class="event-bio">{{ event[9] }}</div>
+				{% endif %}
 				{% if current_username %}
 					<button class="event-action{% if is_attending %} leave{% endif %}"
-							type="button" data-attending="{{ 'true' if is_attending else 'false' }}">
+							type="button" data-attending="{{ 'true' if is_attending else 'false' }}"
+							style="margin-top: 16px;">
 						{{ 'Leave event' if is_attending else 'Participate' }}
 					</button>
 				{% endif %}
+			</section>
+
+			<section class="trash-section" aria-labelledby="trash-title">
+				<p class="trash-collected">
+					<strong>Trash Collected:</strong> {{ trash }} kg
+				</p>
 			</section>
 
 			<section class="picture-section" aria-labelledby="pictures-title">

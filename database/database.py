@@ -228,7 +228,7 @@ def get_created_events_with_attendees(username):
                            ) attendees
                            ORDER BY attendee_username
                        ) AS attendees
-                       , e.latitude, e.longitude
+                       , e.latitude, e.longitude, e.bio
                 FROM Events e
                 WHERE e.username = %s
                 ORDER BY e.date ASC, e.time ASC, e.id ASC
@@ -248,6 +248,7 @@ def update_event(
     event_date,
     latitude,
     longitude,
+    bio,
 ):
     with get_db_connection() as conn:
         with conn.cursor() as cur:
@@ -255,7 +256,8 @@ def update_event(
                 """
                 UPDATE Events
                 SET event_name = %s, country = %s, city = %s,
-                    time = %s, date = %s, latitude = %s, longitude = %s
+                    time = %s, date = %s, latitude = %s, longitude = %s,
+                    bio = %s
                 WHERE id = %s AND username = %s
                 RETURNING id
                 """,
@@ -267,6 +269,7 @@ def update_event(
                     event_date,
                     latitude,
                     longitude,
+                    bio,
                     event_id,
                     username,
                 ),
@@ -734,6 +737,30 @@ def get_trash():
     return rows
 
 
+def get_trash_by_event(event_id):
+    """Return the total trash collected for an event, in kilograms.
+
+    Anything logged with a type containing "bag" is counted as 10 kg per bag
+    (i.e. amount * 10). All other trash counts its amount directly as kg.
+    """
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COALESCE(SUM(
+                    CASE
+                        WHEN type ILIKE '%%bag%%' THEN amount * 10
+                        ELSE amount
+                    END
+                ), 0) AS total_kg
+                FROM Trash
+                WHERE event_id = %s
+                """,
+                (event_id,),
+            )
+            return cur.fetchone()[0]
+
+
 def get_events_by_team(team_id):
     with get_db_connection() as conn:
         with conn.cursor() as cur:
@@ -831,7 +858,7 @@ def get_event_by_id(event_id):
                 """
                 SELECT e.id, e.event_name, e.country, e.city,
                        e.time::text, e.date::text,
-                       e.latitude, e.longitude, e.username
+                       e.latitude, e.longitude, e.username, e.bio
                 FROM Events e
                 WHERE e.id = %s
                 """,

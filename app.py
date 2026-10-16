@@ -55,6 +55,7 @@ from database.database import (
     unsubscribe_from_user,
     add_trash,
     get_trash,
+    get_trash_by_event,
     pictures_for_event,
     pictures_for_team,
     pictures_for_user,
@@ -252,8 +253,9 @@ def event_detail(event_id):
     return render_template(
         "Event.html",
         event=event,
-        is_attending=event_id in attending_event_ids, 
-        pictures=pictures_for_event(event_id), 
+        is_attending=event_id in attending_event_ids,
+        pictures=pictures_for_event(event_id),
+        trash=get_trash_by_event(event_id),
     )
 
 
@@ -360,6 +362,7 @@ def edit_event(event_id):
             date.fromisoformat(str(data["date"])),
             float(data["latitude"]),
             float(data["longitude"]),
+            str(data.get("bio", "")).strip() or None,
         )
     except (TypeError, ValueError):
         return jsonify(error="Invalid event data."), 400
@@ -385,6 +388,12 @@ def log_trash(event_id):
     type = request.args['type']
     if username is None:
          return jsonify(error="You must be logged in to log trash."), 401
+    event = get_event_by_id(event_id)
+    if event is None:
+        return jsonify(error="Event not found."), 404
+    event_date = date.fromisoformat(event[5])
+    if event_date > date.today():
+        return jsonify(error="You can only log trash for events that have already taken place."), 400
     if amount is '':
         return jsonify(error="Amount must not be NULL"), 400
     if int(amount) < 1:

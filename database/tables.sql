@@ -16,7 +16,8 @@ CREATE TABLE Events(
     date DATE,
 	latitude DOUBLE PRECISION,
 	longitude DOUBLE PRECISION,
-	username TEXT NOT NULL REFERENCES Accounts(username) ON DELETE CASCADE
+	username TEXT NOT NULL REFERENCES Accounts(username) ON DELETE CASCADE,
+	bio TEXT
 );
 
 CREATE TABLE Subscriptions(
