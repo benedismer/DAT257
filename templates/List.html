@@ -307,6 +307,7 @@
 							data-attending="{{ 'true' if event[0] in attending_event_ids else 'false' }}">
 							{{ 'Leave' if event[0] in attending_event_ids else 'Attend' }}
 						</button>
+						{% if event[0] in attending_event_ids %}
 						<button class="trash"
 							type="button" commandfor="dialog{{ event[0] }}" command="show-modal">
     							log trash
@@ -324,6 +325,7 @@
         							</div>
     							</form>
 						</dialog>
+						{% endif %}
             							
 					{% endif %}
 				</article>
