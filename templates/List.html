@@ -218,6 +218,10 @@
 			.event-id { order: -1; }
 			.event-date { text-align: left; white-space: normal; }
 		}
+			.event[hidden],
+				#events-pagination[hidden] {
+				display: none;
+}
 {% endblock %}
 
 {% block content %}
@@ -302,8 +306,14 @@
 			{% else %}
 				<p class="empty-state">No events were found.</p>
 			{% endfor %}
-		</section>
+	</section>
+
+	<div id="events-pagination">
+		<button type="button" id="events-prev">Previous</button>
+		<button type="button" id="events-next">Next</button>
 	</div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -334,12 +344,47 @@
 			window.location.href = url;
 		});
 
-		searchInput.addEventListener("input", (event) => {
-			const query = event.target.value.trim().toLowerCase();
+		const prev = document.getElementById("events-prev");
+		const next = document.getElementById("events-next");
+		const pagination = document.getElementById("events-pagination");
 
-			eventItems.forEach((item) => {
-				item.hidden = !item.dataset.search.toLowerCase().includes(query);
-			});
+		const pageSize = 5;
+		let page = 0;
+
+		function showEvents() {
+			const query = searchInput.value.trim().toLowerCase();
+
+			const matching = [...eventItems].filter(item =>
+				item.dataset.search.toLowerCase().includes(query)
+			);
+
+			const totalPages = Math.ceil(matching.length / pageSize);
+
+			eventItems.forEach(item => item.hidden = true);
+
+			matching.slice(page * pageSize, (page + 1) * pageSize)
+				.forEach(item => item.hidden = false);
+
+			prev.disabled = page === 0;
+			next.disabled = page >= totalPages - 1;
+			pagination.hidden = totalPages <= 1;
+		}
+
+		prev.addEventListener("click", () => {
+			page--;
+			showEvents();
 		});
+
+		next.addEventListener("click", () => {
+			page++;
+			showEvents();
+		});
+
+		searchInput.addEventListener("input", () => {
+			page = 0;
+			showEvents();
+		});
+
+		showEvents();
 	</script>
 {% endblock %}
