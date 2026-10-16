@@ -311,6 +311,10 @@
 			.event-id { order: -1; }
 			.event-date { text-align: left; white-space: normal; }
 		}
+
+			.profile-row[hidden] {
+    			display: none;
+}
 {% endblock %}
 
 {% block content %}
@@ -384,7 +388,7 @@
 				<button type="submit">Search</button>
 			</form> 
 		</div> 
-		<div class="profile-list" aria-live="polite">
+		<div class="profile-list" id="teams-list" aria-live="polite">
 			{% for team in teams %}
 				<article class="profile-row" data-team-id="{{ team[0] }}">
 					<div>
@@ -414,10 +418,17 @@
 				<div class="profile-empty">No teams were found.</div>
 			{% endfor %}
 		</div>
+
+		<div id="teams-pagination">
+			<button type="button" id="teams-prev">Previous</button>
+			<button type="button" id="teams-next">Next</button>
+		</div>
+		
 		{% if joined_team.found and not is_team_leader %}
 			<p class="team-status" role="status">You can only belong to one team. Leave your current team before joining another.</p>
 		{% endif %}
 	</section>
+	
 
 	<section class="profile-section" aria-labelledby="users-title">
 		<div class="profile-section-head">
@@ -429,7 +440,7 @@
 				<button type="submit">Search</button>
 			</form>
 		</div>
-		<div class="profile-list" aria-live="polite">
+		<div class="profile-list" id="users-list" aria-live="polite">
 			{% for listed_user in users %}
 				<article class="profile-row" data-user-id="{{ listed_user[0] }}">
 					<span class="profile-name">
@@ -444,9 +455,14 @@
 				<div class="profile-empty">No users were found.</div>
 			{% endfor %}
 		</div>
+		<div id="users-pagination">
+    <button type="button" id="users-prev">Previous</button>
+    <button type="button" id="users-next">Next</button>
+</div>
 	</section>
 </div>
 {% endblock %}
+
 
 {% block scripts %}
 	<script>
@@ -540,5 +556,42 @@
 				toggleSubscription(button, button.closest(".profile-row"), "userId");
 			});
 		});
+
+		function setupPagination(listId, prefix) {
+			const rows = [...document.querySelectorAll(`#${listId} .profile-row`)];
+			const prev = document.getElementById(`${prefix}-prev`);
+			const next = document.getElementById(`${prefix}-next`);
+			const pagination = document.getElementById(`${prefix}-pagination`);
+
+			const pageSize = 5;
+			let page = 0;
+			const totalPages = Math.ceil(rows.length / pageSize);
+
+		function showPage() {
+			rows.forEach((row, index) => {
+				row.hidden = index < page * pageSize ||
+							index >= (page + 1) * pageSize;
+			});
+
+			prev.disabled = page === 0;
+			next.disabled = page >= totalPages - 1;
+			pagination.hidden = totalPages <= 1;
+		}
+
+		prev.addEventListener("click", () => {
+			page--;
+			showPage();
+		});
+
+		next.addEventListener("click", () => {
+			page++;
+			showPage();
+		});
+
+		showPage();
+	}
+
+	setupPagination("teams-list", "teams");
+	setupPagination("users-list", "users");
 	</script>
 {% endblock %}
