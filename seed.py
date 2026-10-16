@@ -34,14 +34,24 @@ ACCOUNTS = [
     ("eve",        False),
     ("GreenCrew",  True),
     ("CleanCoast", True),
-    ("EcoRiders",  True),
+    ("EcoRiders",  True),       # addded more test accounts for leaderboard scrolling
+    ("OceanHeroes", True),
+    ("TrashBusters", True),
+    ("NatureSquad", True),
+    ("CityCleaners", True),
+    ("GreenSteps", True),
 ]
 
 # (account username, team name, city, country)
 TEAMS = [
     ("GreenCrew",  "Green Crew",   "Gothenburg", "Sweden"),
     ("CleanCoast", "Clean Coast",  "Malmö",      "Sweden"),
-    ("EcoRiders",  "Eco Riders",   None,         None),
+    ("EcoRiders",  "Eco Riders",   None,         None),         
+    ("OceanHeroes", "Ocean Heroes", "Gothenburg", "Sweden"),    # added more test accounts
+    ("TrashBusters", "Trash Busters", "Stockholm", "Sweden"),
+    ("NatureSquad", "Nature Squad", "Malmö", "Sweden"),
+    ("CityCleaners", "City Cleaners", "Uppsala", "Sweden"),
+    ("GreenSteps", "Green Steps", "Lund", "Sweden"),
 ]
 
 today = date.today()
