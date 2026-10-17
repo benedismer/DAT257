@@ -1,8 +1,10 @@
 import os
 from datetime import date, timedelta
+from pathlib import Path
 
 import psycopg
 from werkzeug.security import generate_password_hash, check_password_hash
+from picture import Picture
 # Psycopg is the most popular PostgreSQL database adapter for Python
 # https://www.psycopg.org/psycopg3/docs/basic/usage.html for method usages
 
@@ -14,7 +16,6 @@ def get_db_connection():
         user=os.getenv("POSTGRES_USER", "postgres"),
         password=os.getenv("POSTGRES_PASSWORD", "Your_Postgres_Password"),
     )
-
 
 
 def add_events(event_name, country, city, event_time, event_date, latitude, longitude, username):
@@ -39,6 +40,22 @@ def add_events(event_name, country, city, event_time, event_date, latitude, long
                 (event_id, username),
             )
             return event_id
+
+
+def add_picture(file_path, uploader_id, event_id, team_id=None):
+    """Store metadata for a picture uploaded for an event."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO Pictures
+                    (file_path, uploader_id, event_id, team_id)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (str(Path(file_path)), uploader_id, event_id, team_id),
+            )
+            return cur.fetchone()[0]
 
 def get_events(
     sort_by="date_asc",
@@ -211,7 +228,7 @@ def get_created_events_with_attendees(username):
                            ) attendees
                            ORDER BY attendee_username
                        ) AS attendees
-                       , e.latitude, e.longitude
+                       , e.latitude, e.longitude, e.bio
                 FROM Events e
                 WHERE e.username = %s
                 ORDER BY e.date ASC, e.time ASC, e.id ASC
@@ -231,6 +248,7 @@ def update_event(
     event_date,
     latitude,
     longitude,
+    bio,
 ):
     with get_db_connection() as conn:
         with conn.cursor() as cur:
@@ -238,7 +256,8 @@ def update_event(
                 """
                 UPDATE Events
                 SET event_name = %s, country = %s, city = %s,
-                    time = %s, date = %s, latitude = %s, longitude = %s
+                    time = %s, date = %s, latitude = %s, longitude = %s,
+                    bio = %s
                 WHERE id = %s AND username = %s
                 RETURNING id
                 """,
@@ -250,6 +269,7 @@ def update_event(
                     event_date,
                     latitude,
                     longitude,
+                    bio,
                     event_id,
                     username,
                 ),
@@ -602,8 +622,8 @@ def change_password(username, password):
 def create_team(admin_id, team_name, city, country):
     """Create a team for an account and mark the account as isTeam=TRUE.
 
-    Returns the new team id on success, or None if the account already has a
-    team (UNIQUE constraint on admin_id) or the account doesn't exist.
+    Returns the new team id on success, or None if the account already owns or
+    belongs to a team, or the account doesn't exist.
     """
     with get_db_connection() as conn: 
         with conn.cursor() as cur: 
@@ -611,12 +631,20 @@ def create_team(admin_id, team_name, city, country):
                 cur.execute(
                     """
                     INSERT INTO Teams (admin_id, name, city, country)
-                    VALUES (%s, %s, %s, %s)
+                    SELECT %s, %s, %s, %s
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM TeamMembers
+                        WHERE member_id = %s
+                    )
                     RETURNING id
                     """,
-                    (admin_id, team_name, city or None, country or None),
+                    (admin_id, team_name, city or None, country or None, admin_id),
                 )
-                team_id = cur.fetchone()[0]
+                row = cur.fetchone()
+                if row is None:
+                    return None
+                team_id = row[0]
                 cur.execute(
                     "UPDATE Accounts SET isTeam = TRUE WHERE id = %s",
                     (admin_id,),
@@ -624,6 +652,28 @@ def create_team(admin_id, team_name, city, country):
                 return team_id
             except psycopg.errors.UniqueViolation:
                 return None  # account already owns a team
+
+
+def delete_team(team_id, admin_id):
+    """Delete a team owned by the account and clear its team status."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM Teams
+                WHERE id = %s AND admin_id = %s
+                RETURNING admin_id
+                """,
+                (team_id, admin_id),
+            )
+            deleted = cur.fetchone()
+            if deleted is None:
+                return False
+            cur.execute(
+                "UPDATE Accounts SET isTeam = FALSE WHERE id = %s",
+                (admin_id,),
+            )
+            return True
 
 
 def get_username_by_id(account_id):
@@ -685,3 +735,203 @@ def get_trash():
             cur.execute(" select * from Trash ")
             rows = cur.fetchall()
     return rows
+
+
+def get_trash_by_event(event_id):
+    """Return the total trash collected for an event, in kilograms.
+
+    Anything logged with a type containing "bag" is counted as 10 kg per bag
+    (i.e. amount * 10). All other trash counts its amount directly as kg.
+    """
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COALESCE(SUM(
+                    CASE
+                        WHEN type ILIKE '%%bag%%' THEN amount * 10
+                        ELSE amount
+                    END
+                ), 0) AS total_kg
+                FROM Trash
+                WHERE event_id = %s
+                """,
+                (event_id,),
+            )
+            return cur.fetchone()[0]
+
+
+def get_events_by_team(team_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT e.id, e.event_name, e.country, e.city,
+                       e.time::text, e.date::text,
+                       e.latitude, e.longitude, e.username, a.id
+                FROM Events e
+                JOIN Accounts a ON a.username = e.username
+                JOIN Teams t ON t.admin_id = a.id
+                WHERE t.id = %s
+                ORDER BY e.date ASC, e.time ASC, e.id ASC
+                """,
+                (team_id,),
+            )
+            return cur.fetchall()
+
+
+def get_events_by_username(username):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT e.id, e.event_name, e.country, e.city,
+                        e.time::text, e.date::text,
+                        e.latitude, e.longitude, e.username, a.id
+                FROM Events e
+                JOIN Accounts a ON a.username = e.username
+                WHERE e.username = %s
+                ORDER BY e.date ASC, e.time ASC, e.id ASC
+                """,
+                (username,),
+            )
+            return cur.fetchall()
+
+def get_team_profile(team_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT t.id, t.name, t.city, t.country, t.admin_id, a.username
+                FROM Teams t
+                JOIN Accounts a ON t.admin_id = a.id
+                WHERE t.id = %s
+                """,
+                (team_id,),
+            )
+            team = cur.fetchone()
+            if team is None:
+                return None, []
+
+            cur.execute(
+                """
+                SELECT leader.id, leader.username, TRUE AS is_leader
+                FROM Teams t
+                JOIN Accounts leader ON leader.id = t.admin_id
+                WHERE t.id = %s
+                UNION ALL
+                SELECT member.id, member.username, FALSE AS is_leader
+                FROM TeamMembers tm
+                JOIN Teams t ON t.id = tm.team_id
+                JOIN Accounts member ON member.id = tm.member_id
+                WHERE t.id = %s AND tm.member_id <> t.admin_id
+                ORDER BY is_leader DESC, username ASC
+                """,
+                (team_id, team_id),
+            )
+            members = cur.fetchall()
+            return team, members
+
+def get_user_profile(user_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT a.id, a.username, a.bio, t.id, t.name
+                FROM Accounts a
+                LEFT JOIN Teams t ON t.admin_id = a.id
+                OR EXISTS (
+                    SELECT 1
+                    FROM TeamMembers tm
+                    WHERE tm.team_id = t.id AND tm.member_id = a.id
+                )
+                WHERE a.id = %s
+                """,
+                (user_id,),
+            )
+            return cur.fetchone()
+
+def get_event_by_id(event_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT e.id, e.event_name, e.country, e.city,
+                       e.time::text, e.date::text,
+                       e.latitude, e.longitude, e.username, e.bio
+                FROM Events e
+                WHERE e.id = %s
+                """,
+                (event_id,),
+            )
+            return cur.fetchone()
+
+def pictures_for_team(team_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT p.id, p.file_path, p.uploader_id, p.event_id, p.team_id
+                FROM Pictures p
+                WHERE p.team_id = %s
+                ORDER BY p.id
+                """,
+                (team_id,),
+            )
+            return [
+                Picture(
+                    id=row[0],
+                    file_path=Path(row[1]),
+                    uploader_id=row[2],
+                    event_id=row[3],
+                    team_id=row[4],
+                )
+                for row in cur.fetchall()
+            ]
+
+
+def pictures_for_user(user_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT p.id, p.file_path, p.uploader_id, p.event_id, p.team_id
+                FROM Pictures p
+                WHERE p.uploader_id = %s
+                ORDER BY p.id
+                """,
+                (user_id,),
+            )
+            return [
+                Picture(
+                    id=row[0],
+                    file_path=Path(row[1]),
+                    uploader_id=row[2],
+                    event_id=row[3],
+                    team_id=row[4],
+                )
+                for row in cur.fetchall()
+            ]
+
+def pictures_for_event(event_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT p.id, p.file_path, p.uploader_id, p.event_id, p.team_id
+                FROM Pictures p
+                WHERE p.event_id = %s
+                ORDER BY p.id
+                """,
+                (event_id,),
+            )
+            return [
+                Picture(
+                    id=row[0],
+                    file_path=Path(row[1]),
+                    uploader_id=row[2],
+                    event_id=row[3],
+                    team_id=row[4],
+                )
+                for row in cur.fetchall()
+            ]

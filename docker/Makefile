@@ -21,6 +21,7 @@ DC ?= docker compose
 # root .env explicitly so variable substitution works regardless of cwd.
 THIS_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 COMPOSE  := $(DC) --env-file $(THIS_DIR)../.env -f $(THIS_DIR)docker-compose.yml
+PICTURES_DIR := $(THIS_DIR)../pictures
 
 # `make` with no target shows help.
 .DEFAULT_GOAL := help
@@ -53,6 +54,7 @@ down: ## TEAR DOWN: stop & remove containers, but KEEP the database data
 
 teardown: ## FULL TEAR DOWN: stop & remove containers AND delete database data (fresh start)
 	$(COMPOSE) down -v
+	find $(PICTURES_DIR) -maxdepth 1 -type f \( -iname '*.gif' -o -iname '*.jpeg' -o -iname '*.jpg' -o -iname '*.png' -o -iname '*.webp' \) -delete
 
 restart: ## Restart the whole project (down then up)
 	$(COMPOSE) down

@@ -311,6 +311,10 @@
 			.event-id { order: -1; }
 			.event-date { text-align: left; white-space: normal; }
 		}
+
+			.profile-row[hidden] {
+    			display: none;
+}
 {% endblock %}
 
 {% block content %}
@@ -384,11 +388,13 @@
 				<button type="submit">Search</button>
 			</form> 
 		</div> 
-		<div class="profile-list" aria-live="polite">
+		<div class="profile-list" id="teams-list" aria-live="polite">
 			{% for team in teams %}
 				<article class="profile-row" data-team-id="{{ team[0] }}">
 					<div>
-						<div class="profile-name">{{ team[1] }}</div>
+						<div class="profile-name">
+							<a href="{{ url_for('team_detail', team_id=team[0]) }}">{{ team[1] }}</a>
+						</div>
 						{% if team[2] or team[3] %}
 							<div class="profile-detail">
 								{{ [team[2], team[3]] | select | join(", ") }}
@@ -396,7 +402,9 @@
 						{% endif %}
 					</div>
 					{% if team[5] and is_team_leader %}
-						<span class="profile-detail">Your team</span>
+						<button class="profile-action delete-team-action" type="button">
+							Delete team
+						</button>
 					{% else %}
 						<button class="profile-action team-action{% if team[5] %} unsubscribe{% endif %}"
 								type="button"
@@ -410,10 +418,17 @@
 				<div class="profile-empty">No teams were found.</div>
 			{% endfor %}
 		</div>
+
+		<div id="teams-pagination">
+			<button type="button" id="teams-prev">Previous</button>
+			<button type="button" id="teams-next">Next</button>
+		</div>
+		
 		{% if joined_team.found and not is_team_leader %}
 			<p class="team-status" role="status">You can only belong to one team. Leave your current team before joining another.</p>
 		{% endif %}
 	</section>
+	
 
 	<section class="profile-section" aria-labelledby="users-title">
 		<div class="profile-section-head">
@@ -425,10 +440,12 @@
 				<button type="submit">Search</button>
 			</form>
 		</div>
-		<div class="profile-list" aria-live="polite">
+		<div class="profile-list" id="users-list" aria-live="polite">
 			{% for listed_user in users %}
 				<article class="profile-row" data-user-id="{{ listed_user[0] }}">
-					<span class="profile-name">{{ listed_user[1] }}</span>
+					<span class="profile-name">
+						<a href="{{ url_for('user_detail', user_id=listed_user[0]) }}">{{ listed_user[1] }}</a>
+					</span>
 					<button class="profile-action user-action{% if listed_user[2] %} unsubscribe{% endif %}"
 							type="button" data-subscribed="{{ 'true' if listed_user[2] else 'false' }}">
 						{{ 'Unsubscribe' if listed_user[2] else 'Subscribe' }}
@@ -438,9 +455,14 @@
 				<div class="profile-empty">No users were found.</div>
 			{% endfor %}
 		</div>
+		<div id="users-pagination">
+    <button type="button" id="users-prev">Previous</button>
+    <button type="button" id="users-next">Next</button>
+</div>
 	</section>
 </div>
 {% endblock %}
+
 
 {% block scripts %}
 	<script>
@@ -504,6 +526,26 @@
 			});
 		}
 
+		document.querySelectorAll("button.delete-team-action").forEach((button) => {
+			button.addEventListener("click", async () => {
+				if (!window.confirm("Delete your team? This will remove all team memberships.")) {
+					return;
+				}
+				const row = button.closest(".profile-row");
+				const response = await fetch(`/teams/${row.dataset.teamId}`, { method: "DELETE" });
+				if (response.status === 401) {
+					window.location.href = "{{ url_for('login') }}";
+					return;
+				}
+				if (!response.ok) {
+					const error = await response.json().catch(() => ({}));
+					if (error.error) window.alert(error.error);
+					return;
+				}
+				window.location.reload();
+			});
+		});
+
 		document.querySelectorAll("button.team-action").forEach((button) => {
 			button.addEventListener("click", () => {
 				toggleTeamMembership(button, button.closest(".profile-row"));
@@ -514,5 +556,42 @@
 				toggleSubscription(button, button.closest(".profile-row"), "userId");
 			});
 		});
+
+		function setupPagination(listId, prefix) {
+			const rows = [...document.querySelectorAll(`#${listId} .profile-row`)];
+			const prev = document.getElementById(`${prefix}-prev`);
+			const next = document.getElementById(`${prefix}-next`);
+			const pagination = document.getElementById(`${prefix}-pagination`);
+
+			const pageSize = 5;
+			let page = 0;
+			const totalPages = Math.ceil(rows.length / pageSize);
+
+		function showPage() {
+			rows.forEach((row, index) => {
+				row.hidden = index < page * pageSize ||
+							index >= (page + 1) * pageSize;
+			});
+
+			prev.disabled = page === 0;
+			next.disabled = page >= totalPages - 1;
+			pagination.hidden = totalPages <= 1;
+		}
+
+		prev.addEventListener("click", () => {
+			page--;
+			showPage();
+		});
+
+		next.addEventListener("click", () => {
+			page++;
+			showPage();
+		});
+
+		showPage();
+	}
+
+	setupPagination("teams-list", "teams");
+	setupPagination("users-list", "users");
 	</script>
 {% endblock %}

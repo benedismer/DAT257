@@ -261,13 +261,15 @@
 		<!-- ---- Create a Team dropdown ---- -->
 		<div class="team-section">
 			<button class="team-toggle" type="button"
-					aria-expanded="false" aria-controls="team-body"
+					aria-expanded="{{ 'true' if create_team_error else 'false' }}"
+					aria-controls="team-body"
 					id="team-toggle-btn">
 				Create a Team
 				<span class="team-toggle-icon" aria-hidden="true">▼</span>
 			</button>
 
-			<div class="team-body" id="team-body" role="region" aria-labelledby="team-toggle-btn">
+			<div class="team-body{% if create_team_error %} open{% endif %}" id="team-body"
+				 role="region" aria-labelledby="team-toggle-btn">
 				{% if current_username %}
 				<p class="team-intro">
 					Once you create a team your account will become the admin of this team.

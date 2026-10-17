@@ -156,8 +156,20 @@
 			font: 0.82rem var(--font-ui);
 		}
 
+		.event-editor textarea {
+			min-width: 0;
+			padding: 7px 8px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			color: var(--text);
+			font: 0.82rem var(--font-ui);
+			resize: vertical;
+		}
+
 		.event-editor .place-controls,
-		.event-editor .editor-message {
+		.event-editor .editor-message,
+		.event-editor .bio-label {
 			grid-column: 1 / -1;
 		}
 
@@ -261,6 +273,9 @@
 						</label>
 						<label>Time 
 							<input name="time" type="time" value="{{ event[4][:5] }}" required>
+						</label>
+						<label class="bio-label">Bio
+							<textarea name="bio" rows="3" placeholder="Event description...">{{ event[10] or '' }}</textarea>
 						</label>
 						<input name="latitude" type="hidden" value="{{ event[8] }}" required>
 						<input name="longitude" type="hidden" value="{{ event[9] }}" required>

@@ -16,7 +16,8 @@ CREATE TABLE Events(
     date DATE,
 	latitude DOUBLE PRECISION,
 	longitude DOUBLE PRECISION,
-	username TEXT NOT NULL REFERENCES Accounts(username) ON DELETE CASCADE
+	username TEXT NOT NULL REFERENCES Accounts(username) ON DELETE CASCADE,
+	bio TEXT
 );
 
 CREATE TABLE Subscriptions(
@@ -56,5 +57,13 @@ CREATE TABLE Trash (
 	amount INTEGER NOT NULL,
 	type TEXT NOT NULL,
 	UNIQUE (event_id, account_name, type)
+);
+
+CREATE TABLE Pictures (
+	id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	file_path TEXT NOT NULL,
+	uploader_id INTEGER NOT NULL REFERENCES Accounts(id) ON DELETE CASCADE,
+	event_id INTEGER NOT NULL REFERENCES Events(id) ON DELETE CASCADE,
+	team_id INTEGER REFERENCES Teams(id) ON DELETE SET NULL
 );
 	

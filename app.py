@@ -1,24 +1,42 @@
 import os
 import threading
 import time as time_module
+from uuid import uuid4
 from datetime import date, time
 import psycopg
 from user_info import UserInfo
+from werkzeug.utils import secure_filename
 
-from flask import Flask, jsonify, render_template, request, session, redirect, url_for
+from flask import (
+    Flask,
+    jsonify,
+    render_template,
+    request,
+    send_from_directory,
+    session,
+    redirect,
+    url_for,
+)
+from picture import PICTURE_FOLDER
 
 from database.database import (
     add_events,
+    add_picture,
     attend_event,
     change_password,
     create_team,
+    delete_team,
     delete_event,
     delete_old_events,
     get_db_connection,
     get_events,
+    get_events_by_team,
+    get_events_by_username,
+    get_event_by_id,
     get_attending_event_ids,
     get_bio_by_id,
     get_team_members,
+    get_team_profile,
     get_team_event_ids,
     get_team_leaderboard,
     get_created_events_with_attendees,
@@ -27,6 +45,7 @@ from database.database import (
     join_team,
     leave_team,
     get_username_by_id,
+    get_user_profile,
     login_to_account,
     signup_for_account,
     stop_attending_event,
@@ -36,6 +55,10 @@ from database.database import (
     unsubscribe_from_user,
     add_trash,
     get_trash,
+    get_trash_by_event,
+    pictures_for_event,
+    pictures_for_team,
+    pictures_for_user,
 )
 
 app = Flask(__name__, template_folder="templates")
@@ -220,6 +243,87 @@ def event_list():
     )
 
 
+@app.route("/events/<int:event_id>")
+def event_detail(event_id):
+    event = get_event_by_id(event_id)
+    if event is None:
+        return render_template("Event.html", event=None), 404
+    username = get_username_by_id(session.get("user_id"))
+    attending_event_ids = get_attending_event_ids(username) if username else set()
+    return render_template(
+        "Event.html",
+        event=event,
+        is_attending=event_id in attending_event_ids,
+        pictures=pictures_for_event(event_id),
+        trash=get_trash_by_event(event_id),
+    )
+
+
+@app.get("/users/<int:user_id>")
+def user_detail(user_id):
+    profile = get_user_profile(user_id)
+    if profile is None:
+        return render_template("User.html", profile=None), 404
+    return render_template(
+        "User.html",
+        profile=profile,
+        events=get_events_by_username(profile[1]),
+        pictures=pictures_for_user(profile[0]),
+    )
+
+
+@app.get("/teams/<int:team_id>")
+def team_detail(team_id):
+    team, members = get_team_profile(team_id)
+    if team is None:
+        return render_template("Team.html", team=None), 404
+    return render_template(
+        "Team.html",
+        team=team,
+        members=members,
+        events=get_events_by_team(team_id),
+        pictures=pictures_for_team(team_id),
+    )
+
+
+@app.post("/events/<int:event_id>/pictures")
+def upload_event_picture(event_id): 
+    user_id = session.get("user_id") 
+    username = get_username_by_id(user_id) if user_id is not None else None
+    if username is None: 
+        return redirect(url_for("login")) 
+    event = get_event_by_id(event_id)
+    if event is None:
+        return render_template("Event.html", event=None), 404
+    if event_id not in get_attending_event_ids(username):
+        return redirect(url_for("event_detail", event_id=event_id))
+
+    upload = request.files.get("picture")
+    filename = secure_filename(upload.filename) if upload else ""
+    if not upload or not filename:
+        return redirect(url_for("event_detail", event_id=event_id))
+    extension = os.path.splitext(filename)[1].lower()
+    if extension not in {".gif", ".jpeg", ".jpg", ".png", ".webp"}:
+        return redirect(url_for("event_detail", event_id=event_id))
+
+    PICTURE_FOLDER.mkdir(exist_ok=True)
+    filename = f"event-{event_id}-{uuid4().hex}{extension}"
+    picture_path = PICTURE_FOLDER / filename
+    upload.save(picture_path)
+    try:
+        add_picture(filename, user_id, event_id)
+    except psycopg.Error:
+        picture_path.unlink(missing_ok=True)
+        raise
+    return redirect(url_for("event_detail", event_id=event_id))
+
+
+@app.get("/pictures/<path:filename>")
+def serve_picture(filename):
+    """Serve local dummy pictures without involving the database."""
+    return send_from_directory(PICTURE_FOLDER, filename)
+
+
 @app.route("/created-events")
 def created_events():
     username = get_username_by_id(session.get("user_id"))
@@ -258,6 +362,7 @@ def edit_event(event_id):
             date.fromisoformat(str(data["date"])),
             float(data["latitude"]),
             float(data["longitude"]),
+            str(data.get("bio", "")).strip() or None,
         )
     except (TypeError, ValueError):
         return jsonify(error="Invalid event data."), 400
@@ -283,9 +388,21 @@ def log_trash(event_id):
     type = request.args['type']
     if username is None:
          return jsonify(error="You must be logged in to log trash."), 401
+    event = get_event_by_id(event_id)
+    if event is None:
+        return jsonify(error="Event not found."), 404
+    event_date = date.fromisoformat(event[5])
+    if event_date > date.today():
+        return jsonify(error="You can only log trash for events that have already taken place."), 400
+    if amount is '':
+        return jsonify(error="Amount must not be NULL"), 400
+    if int(amount) < 1:
+        return jsonify(error="Amount must be greater than 1"), 400
+    if type is '':
+        return jsonify(error="Type must not be NULL"), 400
     if not add_trash(event_id, username, amount, type):
         return jsonify(error="Could not log trash."), 401
-    return jsonify(get_trash()), 200
+    return '', 204
 
 @app.post("/events/<int:event_id>/attendance")
 def join_event(event_id):
@@ -328,6 +445,16 @@ def leave_team_route(team_id):
         return jsonify(error="You must be logged in to leave a team."), 401
     leave_team(team_id, member_id)
     return jsonify(joined=False)
+
+
+@app.delete("/teams/<int:team_id>")
+def delete_team_route(team_id):
+    admin_id = session.get("user_id")
+    if admin_id is None:
+        return jsonify(error="You must be logged in to delete a team."), 401
+    if not delete_team(team_id, admin_id):
+        return jsonify(error="Team not found or you are not its owner."), 404
+    return jsonify(deleted=True)
 
 
 @app.post("/subscriptions/<int:user_id>")
@@ -423,7 +550,12 @@ def create_team_route():
 
     team_id = create_team(user_id, team_name, city, country)
     if team_id is None:
-        return jsonify(error="Your account already has a team."), 409
+        return render_template(
+            "login.html",
+            message="Your account already has a team.",
+            message_type="error",
+            create_team_error=True,
+        ), 409
 
     return redirect(url_for("login"))
 
@@ -488,6 +620,10 @@ def health():
         database_version=db_version,
         map_api_key_configured=bool(os.environ.get("MAP_API_KEY")),
     )
+
+@app.route("/debug/trash")
+def debug_trash():
+	return jsonify(get_trash()), 200
 
 
 if __name__ == "__main__":

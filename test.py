@@ -1,3 +1,6 @@
+from io import BytesIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 import sys
 from datetime import date, time
@@ -5,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import app as app_module
 from database import database
+from picture import PICTURE_FOLDER, Picture, add_picture
 
 
 class FakeCursor:
@@ -62,6 +66,44 @@ def database_connection(cursor):
 
 
 class DatabaseTests(unittest.TestCase):
+    def test_add_picture_inserts_picture_metadata(self):
+        cursor = FakeCursor(returned_id=19)
+
+        with database_connection(cursor):
+            picture_id = database.add_picture(
+                PICTURE_FOLDER / "event-19.jpg", 7, 3, 4
+            )
+
+        self.assertEqual(picture_id, 19)
+        query, parameters = cursor.executed[0]
+        self.assertIn("INSERT INTO Pictures", query)
+        self.assertEqual(
+            parameters,
+            (str(PICTURE_FOLDER / "event-19.jpg"), 7, 3, 4),
+        )
+
+    def test_picture_queries_return_picture_objects_for_the_requested_owner(self):
+        row = (13, "event-3-photo.png", 7, 3, 4)
+        queries = (
+            (database.pictures_for_event, 3, "p.event_id"),
+            (database.pictures_for_user, 7, "p.uploader_id"),
+            (database.pictures_for_team, 4, "p.team_id"),
+        )
+
+        for picture_query, identifier, filter_column in queries:
+            with self.subTest(filter_column=filter_column):
+                cursor = FakeCursor(rows=[row])
+
+                with database_connection(cursor):
+                    pictures = picture_query(identifier)
+
+                self.assertEqual(len(pictures), 1)
+                self.assertEqual(pictures[0].file_path, Path(row[1]))
+                self.assertEqual(pictures[0].id, row[0])
+                query, parameters = cursor.executed[0]
+                self.assertIn(filter_column + " = %s", query)
+                self.assertEqual(parameters, (identifier,))
+
     def test_add_events_inserts_event_and_creator_attendance(self):
         cursor = FakeCursor(returned_id=17)
 
@@ -244,7 +286,11 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(team_id, 42)
         self.assertEqual(len(cursor.executed), 2)
         self.assertIn("INSERT INTO Teams", cursor.executed[0][0])
-        self.assertEqual(cursor.executed[0][1], (7, "Green Gothenburg", "Gothenburg", "Sweden"))
+        self.assertIn("FROM TeamMembers", cursor.executed[0][0])
+        self.assertEqual(
+            cursor.executed[0][1],
+            (7, "Green Gothenburg", "Gothenburg", "Sweden", 7),
+        )
         self.assertIn("UPDATE Accounts", cursor.executed[1][0])
         self.assertIn("isTeam = TRUE", cursor.executed[1][0])
         self.assertEqual(cursor.executed[1][1], (7,))
@@ -275,6 +321,38 @@ class DatabaseTests(unittest.TestCase):
             team_id = database.create_team(7, "Duplicate Team", None, None)
 
         self.assertIsNone(team_id)
+
+    def test_create_team_returns_none_for_existing_team_member(self):
+        cursor = FakeCursor(fetchone_sequence=[None])
+
+        with database_connection(cursor):
+            team_id = database.create_team(7, "Another Team", None, None)
+
+        self.assertIsNone(team_id)
+        self.assertIn("WHERE member_id = %s", cursor.executed[0][0])
+        self.assertEqual(cursor.executed[0][1], (7, "Another Team", None, None, 7))
+
+    def test_delete_team_removes_owned_team_and_clears_team_flag(self):
+        cursor = FakeCursor(fetchone_sequence=[(7,)])
+
+        with database_connection(cursor):
+            deleted = database.delete_team(42, 7)
+
+        self.assertTrue(deleted)
+        self.assertEqual(len(cursor.executed), 2)
+        self.assertIn("DELETE FROM Teams", cursor.executed[0][0])
+        self.assertEqual(cursor.executed[0][1], (42, 7))
+        self.assertIn("isTeam = FALSE", cursor.executed[1][0])
+        self.assertEqual(cursor.executed[1][1], (7,))
+
+    def test_delete_team_returns_false_for_non_owner(self):
+        cursor = FakeCursor(fetchone_sequence=[None])
+
+        with database_connection(cursor):
+            deleted = database.delete_team(42, 7)
+
+        self.assertFalse(deleted)
+        self.assertEqual(len(cursor.executed), 1)
 
     def test_join_team_allows_only_accounts_without_existing_team_membership(self):
         cursor = FakeCursor(returned_id=12)
@@ -319,6 +397,59 @@ class DatabaseTests(unittest.TestCase):
         self.assertIn("ORDER BY score DESC NULLS LAST", query)
         self.assertEqual(parameters, [])
 
+    def test_get_team_profile_returns_team_and_leader_and_members(self):
+        team = (4, "Book Club", "Gothenburg", "Sweden", 7, "alice")
+        members = [(7, "alice", True), (9, "bob", False)]
+        cursor = FakeCursor(rows=members, fetchone_sequence=[team])
+
+        with database_connection(cursor):
+            profile, team_members = database.get_team_profile(4)
+
+        self.assertEqual(profile, team)
+        self.assertEqual(team_members, members)
+        self.assertEqual(len(cursor.executed), 2)
+        team_query, team_parameters = cursor.executed[0]
+        self.assertIn("t.id, t.name, t.city, t.country, t.admin_id", team_query)
+        self.assertIn("t.admin_id = a.id", team_query)
+        self.assertEqual(team_parameters, (4,))
+        members_query, members_parameters = cursor.executed[1]
+        self.assertIn("FROM TeamMembers tm", members_query)
+        self.assertEqual(members_parameters, (4, 4))
+
+    def test_get_team_profile_returns_empty_result_for_missing_team(self):
+        cursor = FakeCursor(fetchone_sequence=[None])
+
+        with database_connection(cursor):
+            profile, members = database.get_team_profile(404)
+
+        self.assertIsNone(profile)
+        self.assertEqual(members, [])
+        self.assertEqual(len(cursor.executed), 1)
+
+    def test_get_event_by_id_returns_event_row(self):
+        event = (
+            12, "Book swap", "Sweden", "Gothenburg",
+            "18:30:00", "2026-10-14", 57.7, 11.97, "alice",
+        )
+        cursor = FakeCursor(fetchone_sequence=[event])
+
+        with database_connection(cursor):
+            result = database.get_event_by_id(12)
+
+        self.assertEqual(result, event)
+        query, parameters = cursor.executed[0]
+        self.assertIn("FROM Events e", query)
+        self.assertIn("WHERE e.id = %s", query)
+        self.assertEqual(parameters, (12,))
+
+    def test_get_event_by_id_returns_none_for_missing_event(self):
+        cursor = FakeCursor(fetchone_sequence=[None])
+
+        with database_connection(cursor):
+            result = database.get_event_by_id(404)
+
+        self.assertIsNone(result)
+
 
 class RouteTests(unittest.TestCase):
     @classmethod
@@ -332,6 +463,32 @@ class RouteTests(unittest.TestCase):
     def login_session(self, user_id=7):
         with self.client.session_transaction() as session:
             session["user_id"] = user_id
+
+    @patch.object(app_module, "get_attending_event_ids", return_value={5})
+    @patch.object(app_module, "get_event_by_id", return_value=(5, "Event"))
+    @patch.object(app_module, "get_username_by_id", return_value="alice")
+    @patch.object(app_module, "add_picture")
+    def test_event_picture_upload_saves_file_and_records_relative_path(
+        self, add_picture_mock, get_username, get_event, get_attending
+    ):
+        with TemporaryDirectory() as directory:
+            picture_folder = Path(directory)
+            with patch.object(app_module, "PICTURE_FOLDER", picture_folder):
+                self.login_session()
+                response = self.client.post(
+                    "/events/5/pictures",
+                    data={"picture": (BytesIO(b"image data"), "photo.png")},
+                    content_type="multipart/form-data",
+                )
+
+            self.assertEqual(response.status_code, 302)
+            add_picture_mock.assert_called_once()
+            filename, uploader_id, event_id = add_picture_mock.call_args.args
+            self.assertTrue(filename.startswith("event-5-"))
+            self.assertTrue(filename.endswith(".png"))
+            self.assertEqual(uploader_id, 7)
+            self.assertEqual(event_id, 5)
+            self.assertTrue((picture_folder / filename).is_file())
 
     @patch.object(app_module, "_get_teams", return_value=[])
     @patch.object(app_module, "get_users", return_value=[])
@@ -542,6 +699,28 @@ class RouteTests(unittest.TestCase):
         )
         mock_join_team.assert_called_once_with(9, 7)
 
+    def test_guest_cannot_delete_team(self):
+        response = self.client.delete("/teams/4")
+
+        self.assertEqual(response.status_code, 401)
+
+    @patch.object(app_module, "delete_team", return_value=True)
+    def test_team_owner_can_delete_team(self, mock_delete_team):
+        self.login_session(7)
+        response = self.client.delete("/teams/4")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, {"deleted": True})
+        mock_delete_team.assert_called_once_with(4, 7)
+
+    @patch.object(app_module, "delete_team", return_value=False)
+    def test_user_cannot_delete_team_they_do_not_own(self, mock_delete_team):
+        self.login_session(7)
+        response = self.client.delete("/teams/4")
+
+        self.assertEqual(response.status_code, 404)
+        mock_delete_team.assert_called_once_with(4, 7)
+
     @patch.object(app_module, "create_team", return_value=1)
     def test_logged_in_user_can_create_team(self, mock_create_team):
         self.login_session(7)
@@ -576,7 +755,7 @@ class RouteTests(unittest.TestCase):
         mock_create_team.assert_not_called()
 
     @patch.object(app_module, "create_team", return_value=None)
-    def test_create_team_returns_409_if_account_already_has_team(self, mock_create_team):
+    def test_create_team_renders_error_if_account_already_has_team(self, mock_create_team):
         self.login_session(7)
         response = self.client.post(
             "/create-team",
@@ -584,6 +763,8 @@ class RouteTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 409)
+        self.assertIn(b"Your account already has a team.", response.data)
+        self.assertNotIn(b'"error"', response.data)
 
 
 def test_category(test_case):
