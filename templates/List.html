@@ -258,6 +258,13 @@
 			<div>
 				<h2 id="page-title">Events</h2>
 				<p>Check out upcoming events and events from the past year!</p>
+				{% if message %}
+					{% if message_type == 'success' %}
+						<p style="font-weight:600; color: var(--accent);">{{ message }}</p>
+					{% else %}
+						<p style="font-weight:600; color: #c0392b;">{{ message }}</p>
+					{% endif %}
+				{% endif %}
 				<nav class="event-views" aria-label="Event views">
 					<a href="{{ url_for('event_list') }}"
 					   {% if not attending_only and not past_attending and not subscribed_only %}aria-current="page"{% endif %}>All events</a>

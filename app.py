@@ -259,6 +259,8 @@ def event_list():
         attending_only=attending_only,
         past_attending=past_attending,
         attending_event_ids=attending_event_ids,
+        message = request.args.get("message"),
+        message_type = request.args.get("message_type"),
     )
 
 
@@ -412,7 +414,13 @@ def log_trash(event_id):
         return jsonify(error="Event not found."), 404
     event_date = date.fromisoformat(event[5])
     if event_date > date.today():
-        return jsonify(error="You can only log trash for events that have already taken place."), 400
+
+        return redirect(url_for(
+            "event_list",
+            message = "You can only log trash for events that have already taken place.",
+            message_type = "error"
+        ))
+        #return jsonify(error="You can only log trash for events that have already taken place."), 400
     if amount is '':
         return jsonify(error="Amount must not be NULL"), 400
     if int(amount) < 1:
