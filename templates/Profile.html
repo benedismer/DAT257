@@ -314,7 +314,29 @@
 
 			.profile-row[hidden] {
     			display: none;
-}
+			}
+			#teams-pagination,
+			#users-pagination {
+				margin-top: 12px;
+		}
+
+			#teams-pagination button,
+			#users-pagination button {
+				background-color: #e5eee7;
+				color: #315c43;
+				border: 1px solid #315c43;
+				border-radius: 6px;
+				padding: 4px 8px;
+				font: inherit;
+				font-size: 12px;
+				cursor: pointer;
+		}
+
+			#teams-pagination button:disabled,
+			#users-pagination button:disabled {
+				opacity: 0.5;
+				cursor: default;
+		}
 {% endblock %}
 
 {% block content %}

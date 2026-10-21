@@ -249,7 +249,26 @@
 			.event[hidden],
 				#events-pagination[hidden] {
 				display: none;
-}
+		}
+
+		#events-pagination {
+			margin-top: 12px;
+		}	
+		#events-pagination button {
+			background-color: #e5eee7;
+			color: #315c43;
+			border: 1px solid #315c43;
+			border-radius: 6px;
+			padding: 4px 8px;
+			font: inherit;
+			cursor: pointer;
+			font-size: 12px;
+		}
+
+		#events-pagination button:disabled {
+			opacity: 0.5;
+			cursor: default;
+		}
 {% endblock %}
 
 {% block content %}
