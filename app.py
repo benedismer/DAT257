@@ -28,6 +28,8 @@ from database.database import (
     delete_team,
     delete_event,
     delete_old_events,
+    delete_old_pictures,
+    get_old_event_picture_paths,
     get_db_connection,
     get_events,
     get_events_by_team,
@@ -56,6 +58,10 @@ from database.database import (
     add_trash,
     get_trash,
     get_trash_by_event,
+    add_trash_location,
+    get_trash_locations,
+    delete_old_trash_locations,
+    create_event_from_trash_location,
     pictures_for_event,
     pictures_for_team,
     pictures_for_user,
@@ -93,8 +99,18 @@ def inject_current_username():
 def cleanup_old_events_daily():
     while True:
         try:
+            old_event_picture_paths = get_old_event_picture_paths()
+            old_picture_paths = delete_old_pictures()
             deleted_count = delete_old_events()
-            app.logger.info("Deleted %s old events", deleted_count)
+            deleted_locations = delete_old_trash_locations()
+            for picture_path in set(old_event_picture_paths + old_picture_paths):
+                (PICTURE_FOLDER / picture_path).unlink(missing_ok=True)
+            app.logger.info(
+                "Deleted %s old events, %s old trash locations, and %s old pictures",
+                deleted_count,
+                deleted_locations,
+                len(set(old_event_picture_paths + old_picture_paths)),
+            )
         except Exception:
             app.logger.exception("Could not delete old events")
         time_module.sleep(24 * 60 * 60)
@@ -117,6 +133,9 @@ def index():
     return render_template(
         "index.html",
         events=get_events(),
+        trash_locations=[
+            location.as_dict() for location in get_trash_locations()
+        ],
         attending_event_ids=attending_event_ids,
         team_event_ids=get_team_event_ids(user_id) if user_id else set(),
         leaderboard=get_team_leaderboard(),
@@ -594,6 +613,59 @@ def create_event():
     except (TypeError, ValueError) as exc:
         return jsonify(error=f"Invalid event data: {exc}"), 400
 
+    return jsonify(id=event_id), 201
+
+
+def _coordinates_from_request(data):
+    try:
+        latitude = float(data["latitude"])
+        longitude = float(data["longitude"])
+    except (KeyError, TypeError, ValueError):
+        raise ValueError("Coordinates must be numbers.") from None
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        raise ValueError("Coordinates are outside the valid range.")
+    return latitude, longitude
+
+
+@app.post("/trash-locations")
+def create_trash_location():
+    username = get_authenticated_username()
+    if username is None:
+        return jsonify(error="You must be logged in to create a trash location."), 401
+    data = request.get_json(silent=True) or request.form
+    try:
+        latitude, longitude = _coordinates_from_request(data)
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    location = add_trash_location(latitude, longitude, username)
+    return jsonify(location=location.as_dict()), 201
+
+
+@app.post("/trash-locations/<int:location_id>/events")
+def create_event_at_trash_location(location_id):
+    username = get_authenticated_username()
+    if username is None:
+        return jsonify(error="You must be logged in to create an event."), 401
+    data = request.get_json(silent=True) or request.form
+    required_fields = ("event_name", "time", "date")
+    missing_fields = [field for field in required_fields if not str(data.get(field, "")).strip()]
+    if missing_fields:
+        return jsonify(error="Missing fields: " + ", ".join(missing_fields)), 400
+    try:
+        event_id = create_event_from_trash_location(
+            location_id,
+            str(data["event_name"]).strip(),
+            str(data.get("country", "")).strip() or None,
+            str(data.get("city", "")).strip() or None,
+            time.fromisoformat(str(data["time"])),
+            date.fromisoformat(str(data["date"])),
+            username,
+            str(data.get("bio", "")).strip() or None,
+        )
+    except (TypeError, ValueError) as exc:
+        return jsonify(error=f"Invalid event data: {exc}"), 400
+    if event_id is None:
+        return jsonify(error="Trash location not found or expired."), 404
     return jsonify(id=event_id), 201
 
 @app.route("/health")
