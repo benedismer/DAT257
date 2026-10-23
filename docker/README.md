@@ -19,10 +19,8 @@ Two containers that run side by side:
 | `web`     | The Flask app | http://localhost:5000 |
 | `db`      | PostgreSQL 16 database | used by `web` internally |
 
-The app has two routes to start with:
-
-- `GET /` → `Hello, World!`
-- `GET /health` → JSON showing whether the app can reach the database
+The app provides a map-based home page at `GET /`. The `GET /health` endpoint
+returns JSON showing whether the app can reach the database.
 
 Your source code is mounted into the `web` container, so when you edit a `.py`
 file the server **reloads automatically** — no rebuild needed.
@@ -172,7 +170,7 @@ Do this once, after cloning the repo.
    make up-build
    ```
    The first run downloads images and builds the app, so it takes a few minutes.
-   When it's done, open http://localhost:5000 — you should see `Hello, World!`.
+   When it's done, open http://localhost:5000 to use Rubby.
 
 ---
 
@@ -310,9 +308,9 @@ Start Docker Desktop (Windows/macOS) and wait for "Engine running", or start the
 service on Linux: `sudo systemctl start docker`.
 
 **Port 5000 is already in use.**
-Something else is using the port. Stop it, or change the mapping in
-`docker/docker-compose.yml` from `"5000:5000"` to e.g. `"5001:5000"`, then use
-http://localhost:5001.
+Something else is using the port. Stop it before starting Rubby, or temporarily
+change the host side of the mapping in `docker/docker-compose.yml` from
+`"5000:5000"` to e.g. `"5001:5000"`, then use http://localhost:5001.
 
 **`make: command not found` (Windows).**
 Use a WSL2 Ubuntu terminal, or use the raw `docker compose` commands from
