@@ -363,6 +363,32 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(len(cursor.executed), 1)
         self.assertNotIn("DELETE FROM", cursor.executed[0][0])
 
+    def test_delete_account_cleans_id_and_username_references(self):
+        cursor = FakeCursor(fetchone_sequence=[("alice",)])
+
+        with database_connection(cursor):
+            deleted = database.delete_account(7)
+
+        self.assertTrue(deleted)
+        self.assertEqual(len(cursor.executed), 4)
+        self.assertIn("SELECT username FROM Accounts", cursor.executed[0][0])
+        self.assertEqual(cursor.executed[0][1], (7,))
+        self.assertIn("DELETE FROM Subscriptions", cursor.executed[1][0])
+        self.assertEqual(cursor.executed[1][1], (7, 7))
+        self.assertIn("DELETE FROM Trash", cursor.executed[2][0])
+        self.assertEqual(cursor.executed[2][1], ("alice", "alice"))
+        self.assertIn("DELETE FROM Accounts", cursor.executed[3][0])
+        self.assertEqual(cursor.executed[3][1], (7,))
+
+    def test_delete_account_returns_false_without_deleting_missing_account(self):
+        cursor = FakeCursor(fetchone_sequence=[None])
+
+        with database_connection(cursor):
+            deleted = database.delete_account(404)
+
+        self.assertFalse(deleted)
+        self.assertEqual(len(cursor.executed), 1)
+
     def test_join_team_allows_only_accounts_without_existing_team_membership(self):
         cursor = FakeCursor(returned_id=12)
 
@@ -719,6 +745,42 @@ class RouteTests(unittest.TestCase):
             response.json,
             {"error": "You must be logged in to delete a team."},
         )
+
+    def test_guest_cannot_delete_account(self):
+        response = self.client.delete("/account")
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(
+            response.json,
+            {"error": "You must be logged in to delete your account."},
+        )
+
+    @patch.object(app_module, "delete_account", return_value=True)
+    def test_logged_in_user_can_delete_only_their_session_account(self, mock_delete_account):
+        self.login_session(23)
+
+        response = self.client.delete("/account")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, {"deleted": True})
+        mock_delete_account.assert_called_once_with(23)
+        with self.client.session_transaction() as session:
+            self.assertNotIn("user_id", session)
+
+    @patch.object(app_module, "delete_account", return_value=False)
+    def test_account_delete_returns_not_found_when_database_delete_fails(
+        self, mock_delete_account
+    ):
+        self.login_session(23)
+
+        response = self.client.delete("/account")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            response.json,
+            {"error": "Account not found or could not be deleted."},
+        )
+        mock_delete_account.assert_called_once_with(23)
 
     @patch.object(app_module, "delete_team", return_value=True)
     def test_team_owner_can_delete_team(self, mock_delete_team):
