@@ -81,7 +81,7 @@ up-web: ## Start ONLY the web (Flask) container
 	$(COMPOSE) up -d web
 
 test: ## Run the Python unit tests in a disposable web container
-	$(COMPOSE) run --rm --no-deps web python test.py
+	$(COMPOSE) run --rm --no-deps web python App/test.py
 
 stop-web: ## Stop ONLY the web container (leave it around, don't delete)
 	$(COMPOSE) stop web
@@ -118,10 +118,10 @@ db-shell: ## Open a psql prompt inside the running database container
 ## ----------------------------------------------------------------------------
 
 seed: ## Populate the database with fake accounts, teams, and events
-	$(COMPOSE) exec web python seed.py
+	$(COMPOSE) exec web python App/seed.py
 
 seed-reset: ## Wipe all data, then repopulate with fake data (fresh seed)
-	$(COMPOSE) exec web python seed.py --reset
+	$(COMPOSE) exec web python App/seed.py --reset
 
 ## ----------------------------------------------------------------------------
 ## Housekeeping

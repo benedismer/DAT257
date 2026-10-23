@@ -27,4 +27,4 @@ COPY . .
 EXPOSE 5000
 
 # Default command runs the app. Flask's debug reloader handles live reload.
-CMD ["python", "app.py"]
+CMD ["python", "App/app.py"]

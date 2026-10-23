@@ -3,6 +3,7 @@ import threading
 import time as time_module
 from uuid import uuid4
 from datetime import date, time
+from pathlib import Path
 import psycopg
 from user_info import UserInfo
 from werkzeug.utils import secure_filename
@@ -68,7 +69,8 @@ from database.database import (
     pictures_for_user,
 )
 
-app = Flask(__name__, template_folder="templates")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+app = Flask(__name__, template_folder=PROJECT_ROOT / "templates")
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me") # login session
 
 

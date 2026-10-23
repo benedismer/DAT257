@@ -2,13 +2,13 @@
 seed.py — populate the database with realistic fake data for development.
 
 Run inside the web container:
-    docker exec dat257-web-1 python seed.py
+    docker exec dat257-web-1 python App/seed.py
 
 Or locally (if you have psycopg + env vars set):
-    python seed.py
+    python App/seed.py
 
 Pass --reset to wipe all existing rows before inserting:
-    docker exec dat257-web-1 python seed.py --reset
+    docker exec dat257-web-1 python App/seed.py --reset
 """
 
 import sys
@@ -20,8 +20,9 @@ from werkzeug.security import generate_password_hash
 
 from database.database import get_db_connection
 
-PICTURE_SEED_FOLDER = Path(__file__).resolve().parent / "Picture_Seed"
-PICTURE_FOLDER = Path(__file__).resolve().parent / "pictures"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PICTURE_SEED_FOLDER = PROJECT_ROOT / "Picture_Seed"
+PICTURE_FOLDER = PROJECT_ROOT / "pictures"
 PICTURE_SUFFIXES = {".gif", ".jpeg", ".jpg", ".png", ".webp"}
 
 # ---------------------------------------------------------------------------

@@ -84,7 +84,7 @@ count their stored amount directly as kilograms.
 
 ## Development commands
 
-Run these from the repository root:
+Run these from the project root:
 
 | Command | Description |
 |---------|-------------|
@@ -98,7 +98,7 @@ Run these from the repository root:
 | `make logs` | Follow logs from both services |
 | `make db-shell` | Open a PostgreSQL shell |
 
-Source files are mounted into the web container, so application edits reload
+Application files are mounted into the web container, so application edits reload
 automatically in development.
 
 ## Database and schema
@@ -117,14 +117,14 @@ to existing development databases when needed.
 
 ## Testing
 
-Tests are in [test.py](test.py) and use Python's `unittest` framework. The
+Tests are in [App/test.py](App/test.py) and use Python's `unittest` framework. The
 recommended command is:
 
 ```bash
 make test
 ```
 
-Running `python3 -m unittest test.py` directly requires the dependencies in
+Running `python3 -m unittest App/test.py` directly requires the dependencies in
 `docker/requirements.txt`, including `psycopg`.
 
 ## Known limitations
