@@ -30,7 +30,7 @@ services:
       - "5000:5000"
     volumes:
       # Mount the project root into the container so edits reload live (dev only).
-      - ..:/app
+      - ..:/App/
     depends_on:
       # Wait until Postgres reports healthy before starting the app.
       db:

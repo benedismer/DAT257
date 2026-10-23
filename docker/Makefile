@@ -122,7 +122,6 @@ seed: ## Populate the database with fake accounts, teams, and events
 
 seed-reset: ## Wipe all data, then repopulate with fake data (fresh seed)
 	$(COMPOSE) exec web python App/seed.py --reset
-
 ## ----------------------------------------------------------------------------
 ## Housekeeping
 ## ----------------------------------------------------------------------------
