@@ -502,10 +502,9 @@ def get_team_leaderboard():
                            / NULLIF(mc.member_count * ec.event_count, 0) * 100
                            AS score,
                        mc.member_count, ec.event_count,
-                       COALESCE(tt.total_kg, 0) / NULLIF(mc.member_count, 0)
-                           AS kg_per_person,
-                       COALESCE(tt.total_kg, 0) / NULLIF(ec.event_count, 0)
-                           AS kg_per_event
+                       COALESCE(tt.total_kg, 0)
+                           / NULLIF(mc.member_count * ec.event_count, 0)
+                           AS kg_per_person_per_event
                 FROM Teams t
                 JOIN member_counts mc ON mc.team_id = t.id
                 JOIN event_counts ec ON ec.team_id = t.id
