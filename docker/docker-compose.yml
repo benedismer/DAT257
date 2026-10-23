@@ -27,7 +27,7 @@ services:
     ports:
 
       # host:container -> visit http://localhost:5000 in your browser.
-      - "5050:5000"
+      - "5000:5000"
     volumes:
       # Mount the project root into the container so edits reload live (dev only).
       - ..:/app
