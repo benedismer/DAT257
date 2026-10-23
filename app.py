@@ -27,6 +27,7 @@ from database.database import (
     create_team,
     delete_team,
     delete_event,
+    delete_account,
     delete_old_events,
     delete_old_pictures,
     get_old_event_picture_paths,
@@ -605,6 +606,18 @@ def logout():
     session.pop("user_id", None)
     # Send them back to the home page.
     return redirect(url_for("login"))
+
+
+@app.delete("/account")
+def delete_account_route():
+    account_id = session.get("user_id")
+    if account_id is None:
+        return jsonify(error="You must be logged in to delete your account."), 401
+    if not delete_account(account_id):
+        return jsonify(error="Account not found or could not be deleted."), 404
+    session.pop("user_id", None)
+    return jsonify(deleted=True), 200
+
 
 @app.post("/events")
 def create_event():

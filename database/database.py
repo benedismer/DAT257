@@ -836,6 +836,37 @@ def delete_team(team_id, admin_id):
             return True
 
 
+def delete_account(account_id):
+    """Delete one account by ID and clean up rows without cascading foreign keys."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT username FROM Accounts WHERE id = %s",
+                (account_id,),
+            )
+            account = cur.fetchone()
+            if account is None:
+                return False
+
+            username = account[0]
+            cur.execute(
+                "DELETE FROM Subscriptions WHERE subscriber_id = %s OR team_id = %s",
+                (account_id, account_id),
+            )
+            cur.execute(
+                """
+                DELETE FROM Trash
+                WHERE account_name = %s
+                   OR event_id IN (
+                       SELECT id FROM Events WHERE username = %s
+                   )
+                """,
+                (username, username),
+            )
+            cur.execute("DELETE FROM Accounts WHERE id = %s", (account_id,))
+            return cur.rowcount == 1
+
+
 def get_username_by_id(account_id):
     """Look up a username from an account id (used to show who is logged in).
 
