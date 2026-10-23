@@ -249,6 +249,59 @@
 			max-width: calc(100vw - 64px);
 			margin: 12px;
 		}
+
+		.event-popup {
+			font-family: var(--font-ui);
+			font-size: 0.95rem;
+			line-height: 1.5;
+		}
+
+		.event-popup .event-popup-title {
+			display: block;
+			margin-bottom: 12px;
+			font-size: 1.2rem;
+			line-height: 1.3;
+			font-weight: 700;
+			color: var(--text);
+		}
+
+		.event-popup .event-popup-details {
+			display: grid;
+			gap: 8px;
+			margin: 0;
+		}
+
+		.event-popup .event-popup-detail {
+			display: grid;
+			grid-template-columns: 76px 1fr;
+			gap: 8px;
+			align-items: baseline;
+		}
+
+		.event-popup .event-popup-label {
+			font-size: 0.72rem;
+			font-weight: 600;
+			letter-spacing: 0.03em;
+			color: var(--text-muted);
+			text-transform: uppercase;
+		}
+
+		.event-popup .event-popup-value {
+			color: var(--text);
+		}
+
+		.event-popup .event-popup-attendance {
+			margin: 12px 0 0;
+			padding-top: 10px;
+			border-top: 1px solid var(--border);
+			font-size: 0.82rem;
+			color: var(--accent);
+		}
+
+		.leaflet-popup.event-popup .leaflet-popup-content {
+			width: 340px !important;
+			max-width: calc(100vw - 48px);
+		}
 {% endblock %}
 
 {% block content %}
@@ -321,9 +374,6 @@
 		}
 
 		function addEventMarker(event) {
-			const attendanceMessage = attendingEventIds.has(event[0])
-				? "<br><strong>You are attending this event.</strong>"
-				: "";
 			const markerOptions = teamEventIds.has(event[0])
 				? {
 					icon: L.divIcon({
@@ -335,7 +385,34 @@
 				: {};
 			L.marker([event[6], event[7]], markerOptions)
 				.addTo(map)
-				.bindPopup(`<strong>${event[1]}</strong><br>${event[5]} at ${event[4]}${attendanceMessage}`);
+				.bindPopup(`
+					<div class="event-popup">
+						<strong class="event-popup-title">${event[1]}</strong>
+						<div class="event-popup-details">
+							<div class="event-popup-detail">
+								<span class="event-popup-label">Date</span>
+								<span class="event-popup-value">${event[5]}</span>
+							</div>
+							<div class="event-popup-detail">
+								<span class="event-popup-label">Time</span>
+								<span class="event-popup-value">${event[4]}</span>
+							</div>
+							${[event[3], event[2]].filter(Boolean).length
+								? `<div class="event-popup-detail">
+									<span class="event-popup-label">Location</span>
+									<span class="event-popup-value">${[event[3], event[2]].filter(Boolean).join(", ")}</span>
+								</div>`
+								: ""}
+							<div class="event-popup-detail">
+								<span class="event-popup-label">Organizer</span>
+								<span class="event-popup-value">${event[8] || "Not specified"}</span>
+							</div>
+						</div>
+						${attendingEventIds.has(event[0])
+							? '<p class="event-popup-attendance">You are attending this event.</p>'
+							: ""}
+					</div>
+				`, { className: "event-popup" });
 		}
 
 		events.forEach(addEventMarker);
