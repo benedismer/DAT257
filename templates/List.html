@@ -293,7 +293,9 @@
 				{% endif %}
 				<nav class="event-views" aria-label="Event views">
 					<a href="{{ url_for('event_list') }}"
-					   {% if not attending_only and not past_attending and not subscribed_only %}aria-current="page"{% endif %}>All events</a>
+					   {% if not attending_only and not past_attending and not subscribed_only and not team_only and not past_all %}aria-current="page"{% endif %}>All events</a>
+					<a href="{{ url_for('event_list', view='past') }}"
+					   {% if past_all %}aria-current="page"{% endif %}>Past Events</a>
 					{% if current_username %}
 						<a href="{{ url_for('event_list', view='attending') }}"
 						   {% if attending_only %}aria-current="page"{% endif %}>Attending</a>

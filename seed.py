@@ -76,6 +76,14 @@ EVENTS = [
     ("Autumn park cleanup",    "Sweden", "Gothenburg", time(13, 0),  today - timedelta(days=7),   57.7010, 11.9710, "GreenCrew"),
     ("Spring canal run",       "Sweden", "Gothenburg", time(10, 30), today - timedelta(days=30),  57.7080, 11.9730, "alice"),
     ("Ocean cleanup",          "Sweden", "Gothenburg", time(10, 0),  today + timedelta(days=4),   57.7089, 11.9746, "OceanHeroes"),
+    # --- Olden events: in the recent past (within the last year) ---
+    ("Olden harbour tidy",     "Sweden", "Gothenburg", time(9, 30),  today - timedelta(days=60),  57.7051, 11.9680, "GreenCrew"),
+    ("Olden meadow cleanup",   "Sweden", "Malmö",      time(13, 30), today - timedelta(days=120), 55.6040, 13.0010, "CleanCoast"),
+    ("Olden canal scrub",      "Sweden", "Gothenburg", time(11, 0),  today - timedelta(days=200), 57.7072, 11.9701, "alice"),
+    # --- Ancient events: more than a year in the past ---
+    ("Ancient riverside sweep","Sweden", "Gothenburg", time(10, 0),  today - timedelta(days=400), 57.7085, 11.9725, "GreenCrew"),
+    ("Ancient forest cleanup", None,     None,         time(9, 0),   today - timedelta(days=540), 57.7209, 12.0320, "EcoRiders"),
+    ("Ancient beach rescue",   "Sweden", "Malmö",      time(8, 0),   today - timedelta(days=800), 55.6060, 13.0025, "CleanCoast"),
 ]
 
 # (latitude, longitude, creator_username)
