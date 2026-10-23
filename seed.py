@@ -135,6 +135,26 @@ ATTENDANCE = [
     (9, "bob"),     # past event
 ]
 
+# (event index from EVENTS list above, contributor_username, amount, type)
+# Bag entries are converted to 10 kg by get_trash_by_event().
+TRASH = [
+    (0, "alice",   3, "bags"),
+    (0, "bob",     8, "plastic"),
+    (1, "charlie", 2, "bags"),
+    (1, "diana",   5, "glass"),
+    (2, "eve",     12, "plastic"),
+    (3, "diana",   4, "bags"),
+    (3, "bob",     7, "metal"),
+    (4, "charlie", 9, "plastic"),
+    (5, "EcoRiders", 3, "bags"),
+    (6, "bob",     6, "glass"),
+    (7, "alice",   2, "bags"),
+    (8, "alice",   5, "plastic"),
+    (8, "bob",     3, "bags"),
+    (9, "bob",     4, "glass"),
+    (10, "frank",   6, "plastic"),
+]
+
 PHOTOS = [
     # (event index, uploader username, team username, filename)
     (0, "alice", "GreenCrew", "river-cleanup-alice.png"),
@@ -154,6 +174,7 @@ def reset(cur):
     """Delete all rows in dependency order."""
     cur.execute("DELETE FROM pictures")
     cur.execute("DELETE FROM eventattendance")
+    cur.execute("DELETE FROM trash")
     cur.execute("DELETE FROM trashlocations")
     cur.execute("DELETE FROM teammembers")
     cur.execute("DELETE FROM events")
@@ -287,6 +308,21 @@ def insert_attendance(cur, event_ids, account_ids):
         )
     print(f"  ✓ {len(all_pairs)} attendance records")
 
+
+def insert_trash(cur, event_ids):
+    for event_index, contributor, amount, trash_type in TRASH:
+        cur.execute(
+            """
+            INSERT INTO trash (event_id, account_name, amount, type)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (event_id, account_name, type) DO UPDATE
+                SET amount = EXCLUDED.amount
+            """,
+            (event_ids[event_index], contributor, amount, trash_type),
+        )
+    print(f"  ✓ {len(TRASH)} trash records")
+
+
 def insert_picture(cur, event_id, account_id, team_id, filename):
     cur.execute(
         """
@@ -343,6 +379,7 @@ def main():
             insert_subscriptions(cur, account_ids)
             insert_team_members(cur, account_ids)
             insert_attendance(cur, event_ids, account_ids)
+            insert_trash(cur, event_ids)
             copy_picture_seed()
             insert_pictures(cur, event_ids, account_ids, team_ids)
 
