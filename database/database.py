@@ -773,7 +773,7 @@ def change_password(username, password):
 
 
 
-def create_team(admin_id, team_name, city, country):
+def create_team(admin_id, team_name, city, country, bio=None):
     """Create a team for an account and mark the account as isTeam=TRUE.
 
     Returns the new team id on success, or None if the account already owns or
@@ -784,8 +784,8 @@ def create_team(admin_id, team_name, city, country):
             try: 
                 cur.execute(
                     """
-                    INSERT INTO Teams (admin_id, name, city, country)
-                    SELECT %s, %s, %s, %s
+                    INSERT INTO Teams (admin_id, name, city, country, bio)
+                    SELECT %s, %s, %s, %s, %s
                     WHERE NOT EXISTS (
                         SELECT 1
                         FROM TeamMembers
@@ -793,7 +793,7 @@ def create_team(admin_id, team_name, city, country):
                     )
                     RETURNING id
                     """,
-                    (admin_id, team_name, city or None, country or None, admin_id),
+                    (admin_id, team_name, city or None, country or None, bio or None, admin_id),
                 )
                 row = cur.fetchone()
                 if row is None:
@@ -956,7 +956,7 @@ def get_team_profile(team_id):
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT t.id, t.name, t.city, t.country, t.admin_id, a.username
+                SELECT t.id, t.name, t.city, t.country, t.admin_id, a.username, t.bio
                 FROM Teams t
                 JOIN Accounts a ON t.admin_id = a.id
                 WHERE t.id = %s

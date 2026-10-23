@@ -367,6 +367,7 @@ def main():
     print("Connecting to database...")
     with get_db_connection() as conn:
         with conn.cursor() as cur:
+            cur.execute("ALTER TABLE teams ADD COLUMN IF NOT EXISTS bio TEXT")
             if do_reset:
                 print("Resetting data...")
                 reset(cur)

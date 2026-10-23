@@ -6,6 +6,13 @@
 		.feed { margin-top: 24px; }
 		h2, h3 { margin-top: 0; }
 		.meta, .empty { color: var(--text-muted); }
+		.team-bio {
+			max-width: 52ch;
+			white-space: pre-wrap;
+			hyphens: auto;
+			overflow-wrap: anywhere;
+			word-break: break-word;
+		}
 		.member-list { margin: 0; padding-left: 20px; }
 		.feed-item { padding: 16px 0; }
 		.feed-item + .feed-item { border-top: 1px dashed var(--border); }
@@ -33,6 +40,12 @@
 				</p>
 				{% if team[2] or team[3] %}
 					<p class="meta">{{ team[2] or '' }}{% if team[2] and team[3] %}, {% endif %}{{ team[3] or '' }}</p>
+				{% endif %}
+				{% if team[6] %}
+					<p class="meta team-bio">{{ team[6] }}</p>
+				{% endif %}
+				{% if team[6] %}
+					<p class="meta team-bio">{{ team[6] }}</p>
 				{% endif %}
 				<h3>Members</h3>
 				<ul class="member-list">
