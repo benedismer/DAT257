@@ -339,23 +339,30 @@
 						() => {
 							map.removeLayer(marker);
 							trashLocations.splice(trashLocations.indexOf(location), 1);
-						}
+						},
+						{ cleanup: true }
 					));
 			});
 		}
 
 		trashLocations.forEach(addTrashLocationMarker);
 
-		function openEventForm(latlng, endpoint, onSaved) {
+		function openEventForm(latlng, endpoint, onSaved, options = {}) {
+			const isCleanup = options.cleanup === true;
 			const form = document.createElement("form");
-			form.className = "event-form cleanup-event-form";
-			form.innerHTML = `
+			form.className = isCleanup ? "event-form cleanup-event-form" : "event-form";
+			const header = isCleanup
+				? `
 				<span class="form-title">Turn this spot into a cleanup</span>
 				<p class="form-subtitle">Give your event a name and invite people to make this location shine again.</p>
 				<div class="location-summary">
 					<span class="location-dot" aria-hidden="true"></span>
 					<span>Event location locked to the trashy spot</span>
-				</div>
+				</div>`
+				: `<span class="form-title">Create an event</span>`;
+			const submitLabel = isCleanup ? "Create cleanup event" : "Create event";
+			form.innerHTML = `
+				${header}
 				<label>Event name <input name="event_name" placeholder="e.g. Riverside cleanup" required></label>
 				<label>Country <input name="country" placeholder="Sweden"></label>
 				<label>City <input name="city" placeholder="Gothenburg"></label>
@@ -366,7 +373,7 @@
 				</label>
 				<div class="form-actions">
 					<button type="button" class="secondary-button cancel-event">Cancel</button>
-					<button type="submit">Create cleanup event</button>
+					<button type="submit">${submitLabel}</button>
 				</div>
 				<p class="form-message" aria-live="polite"></p>
 			`;

@@ -259,6 +259,7 @@ def event_list():
         attending_only=attending_only,
         past_attending=past_attending,
         attending_event_ids=attending_event_ids,
+        today=date.today().isoformat(),
         message = request.args.get("message"),
         message_type = request.args.get("message_type"),
     )
