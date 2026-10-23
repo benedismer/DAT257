@@ -236,6 +236,7 @@ def event_list():
     team_only = request.args.get("view") == "teams"
     attending_only = request.args.get("view") == "attending"
     past_attending = request.args.get("view") == "past-attending"
+    past_all = request.args.get("view") == "past"
     user_id = session.get("user_id")
     if (subscribed_only or team_only or attending_only or past_attending) and user_id is None:
         return redirect(url_for("login"))
@@ -248,6 +249,7 @@ def event_list():
         username if past_attending else None,
         past_attending,
         team_member_id=user_id if team_only else None,
+        past_all=past_all,
     )
     if attending_only:
         events = [event for event in events if event[0] in attending_event_ids]
@@ -261,7 +263,9 @@ def event_list():
         team_only=team_only,
         attending_only=attending_only,
         past_attending=past_attending,
+        past_all=past_all,
         attending_event_ids=attending_event_ids,
+        today=date.today().isoformat(),
         message = request.args.get("message"),
         message_type = request.args.get("message_type"),
     )

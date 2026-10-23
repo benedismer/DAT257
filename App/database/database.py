@@ -164,6 +164,7 @@ def get_events(
     attending_username=None,
     past_attending=False,
     team_member_id=None,
+    past_all=False,
 ):
     order_by = {
         "date_asc": "date ASC, time ASC, id ASC",
@@ -202,6 +203,11 @@ def get_events(
                     ") OR e.username = %s)"
                 )
                 parameters.extend([attending_username, attending_username])
+                conditions.append(
+                    "(e.date < CURRENT_DATE OR "
+                    "(e.date = CURRENT_DATE AND e.time < CURRENT_TIME))"
+                )
+            elif past_all:
                 conditions.append(
                     "(e.date < CURRENT_DATE OR "
                     "(e.date = CURRENT_DATE AND e.time < CURRENT_TIME))"

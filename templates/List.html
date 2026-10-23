@@ -117,10 +117,17 @@
 
 		.event {
 			display: grid;
-			grid-template-columns: auto minmax(160px, 1.4fr) 1fr auto auto;
+			grid-template-columns: auto minmax(160px, 1.4fr) 1fr auto 180px;
 			align-items: center;
 			gap: 20px;
 			padding: 18px 22px;
+		}
+
+		.event-actions {
+			display: flex;
+			align-items: center;
+			justify-content: flex-end;
+			gap: 10px;
 		}
 
 		/* dashed divider between rows — a light handmade touch (§3) */
@@ -286,7 +293,9 @@
 				{% endif %}
 				<nav class="event-views" aria-label="Event views">
 					<a href="{{ url_for('event_list') }}"
-					   {% if not attending_only and not past_attending and not subscribed_only %}aria-current="page"{% endif %}>All events</a>
+					   {% if not attending_only and not past_attending and not subscribed_only and not team_only and not past_all %}aria-current="page"{% endif %}>All events</a>
+					<a href="{{ url_for('event_list', view='past') }}"
+					   {% if past_all %}aria-current="page"{% endif %}>Past Events</a>
 					{% if current_username %}
 						<a href="{{ url_for('event_list', view='attending') }}"
 						   {% if attending_only %}aria-current="page"{% endif %}>Attending</a>
@@ -332,32 +341,33 @@
 						{% if event[4] %}<br>{{ event[4] }}{% endif %}
 					</div>
 					{% if current_username %}
-						<button class="event-action{% if event[0] in attending_event_ids %} leave{% endif %}"
-							type="button" data-event-id="{{ event[0] }}"
-							data-attending="{{ 'true' if event[0] in attending_event_ids else 'false' }}">
-							{{ 'Leave' if event[0] in attending_event_ids else 'Attend' }}
-						</button>
-						{% if event[0] in attending_event_ids %}
-						<button class="trash"
-							type="button" commandfor="dialog{{ event[0] }}" command="show-modal">
-    							log trash
-						</button>
-						<dialog id="dialog{{ event [0] }}">
-    							<form action="/events/{{ event[0] }}/log" method="PUT" class="test">
-        							<div>
-            								<input type="number" name="amount" class="number-input"
-            								min="1" required/>
-            								<select name="type">
-                								<option>kg</option>
-                								<option>bags</option>
-            								</select>
-            								<input type="submit" value="submit" class="trash"/>
-            								<input type="submit" value="close" formmethod="dialog" class="trash" formnovalidate/>
-        							</div>
-    							</form>
-						</dialog>
-						{% endif %}
-            							
+						<div class="event-actions">
+							<button class="event-action{% if event[0] in attending_event_ids %} leave{% endif %}"
+								type="button" data-event-id="{{ event[0] }}"
+								data-attending="{{ 'true' if event[0] in attending_event_ids else 'false' }}">
+								{{ 'Leave' if event[0] in attending_event_ids else 'Attend' }}
+							</button>
+							{% if event[0] in attending_event_ids and event[5] and event[5] <= today %}
+							<button class="trash"
+								type="button" commandfor="dialog{{ event[0] }}" command="show-modal">
+								log trash
+							</button>
+							<dialog id="dialog{{ event [0] }}">
+								<form action="/events/{{ event[0] }}/log" method="PUT" class="test">
+									<div>
+										<input type="number" name="amount" class="number-input"
+										min="1" required/>
+										<select name="type">
+											<option>kg</option>
+											<option>bags</option>
+										</select>
+										<input type="submit" value="submit" class="trash"/>
+										<input type="submit" value="close" formmethod="dialog" class="trash" formnovalidate/>
+									</div>
+								</form>
+							</dialog>
+							{% endif %}
+						</div>
 					{% endif %}
 				</article>
 			{% else %}
