@@ -339,11 +339,19 @@ class DatabaseTests(unittest.TestCase):
             deleted = database.delete_team(42, 7)
 
         self.assertTrue(deleted)
-        self.assertEqual(len(cursor.executed), 2)
-        self.assertIn("DELETE FROM Teams", cursor.executed[0][0])
+        self.assertEqual(len(cursor.executed), 6)
+        self.assertIn("SELECT admin_id", cursor.executed[0][0])
         self.assertEqual(cursor.executed[0][1], (42, 7))
-        self.assertIn("isTeam = FALSE", cursor.executed[1][0])
+        self.assertIn("DELETE FROM Subscriptions", cursor.executed[1][0])
         self.assertEqual(cursor.executed[1][1], (7,))
+        self.assertIn("DELETE FROM TeamMembers", cursor.executed[2][0])
+        self.assertEqual(cursor.executed[2][1], (42,))
+        self.assertIn("DELETE FROM Pictures", cursor.executed[3][0])
+        self.assertEqual(cursor.executed[3][1], (42,))
+        self.assertIn("DELETE FROM Teams", cursor.executed[4][0])
+        self.assertEqual(cursor.executed[4][1], (42,))
+        self.assertIn("isTeam = FALSE", cursor.executed[5][0])
+        self.assertEqual(cursor.executed[5][1], (7,))
 
     def test_delete_team_returns_false_for_non_owner(self):
         cursor = FakeCursor(fetchone_sequence=[None])
@@ -353,6 +361,7 @@ class DatabaseTests(unittest.TestCase):
 
         self.assertFalse(deleted)
         self.assertEqual(len(cursor.executed), 1)
+        self.assertNotIn("DELETE FROM", cursor.executed[0][0])
 
     def test_join_team_allows_only_accounts_without_existing_team_membership(self):
         cursor = FakeCursor(returned_id=12)
@@ -706,6 +715,10 @@ class RouteTests(unittest.TestCase):
         response = self.client.delete("/teams/4")
 
         self.assertEqual(response.status_code, 401)
+        self.assertEqual(
+            response.json,
+            {"error": "You must be logged in to delete a team."},
+        )
 
     @patch.object(app_module, "delete_team", return_value=True)
     def test_team_owner_can_delete_team(self, mock_delete_team):
@@ -722,7 +735,20 @@ class RouteTests(unittest.TestCase):
         response = self.client.delete("/teams/4")
 
         self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            response.json,
+            {"error": "Team not found or you are not its owner."},
+        )
         mock_delete_team.assert_called_once_with(4, 7)
+
+    @patch.object(app_module, "delete_team", return_value=True)
+    def test_team_delete_uses_team_id_from_url(self, mock_delete_team):
+        self.login_session(23)
+
+        response = self.client.delete("/teams/987")
+
+        self.assertEqual(response.status_code, 200)
+        mock_delete_team.assert_called_once_with(987, 23)
 
     @patch.object(app_module, "create_team", return_value=1)
     def test_logged_in_user_can_create_team(self, mock_create_team):
