@@ -370,15 +370,17 @@ class DatabaseTests(unittest.TestCase):
             deleted = database.delete_account(7)
 
         self.assertTrue(deleted)
-        self.assertEqual(len(cursor.executed), 4)
+        self.assertEqual(len(cursor.executed), 5)
         self.assertIn("SELECT username FROM Accounts", cursor.executed[0][0])
         self.assertEqual(cursor.executed[0][1], (7,))
         self.assertIn("DELETE FROM Subscriptions", cursor.executed[1][0])
         self.assertEqual(cursor.executed[1][1], (7, 7))
         self.assertIn("DELETE FROM Trash", cursor.executed[2][0])
         self.assertEqual(cursor.executed[2][1], ("alice", "alice"))
-        self.assertIn("DELETE FROM Accounts", cursor.executed[3][0])
-        self.assertEqual(cursor.executed[3][1], (7,))
+        self.assertIn("DELETE FROM Events", cursor.executed[3][0])
+        self.assertEqual(cursor.executed[3][1], ("alice",))
+        self.assertIn("DELETE FROM Accounts", cursor.executed[4][0])
+        self.assertEqual(cursor.executed[4][1], (7,))
 
     def test_delete_account_returns_false_without_deleting_missing_account(self):
         cursor = FakeCursor(fetchone_sequence=[None])
