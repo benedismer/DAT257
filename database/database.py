@@ -869,6 +869,7 @@ def delete_account(account_id):
                 """,
                 (username, username),
             )
+            cur.execute("DELETE FROM Events WHERE username = %s", (username,))
             cur.execute("DELETE FROM Accounts WHERE id = %s", (account_id,))
             return cur.rowcount == 1
 
