@@ -446,7 +446,7 @@ def get_teams(search=None, member_id=None):
 
 
 def get_team_leaderboard():
-    """Return teams ranked by average member attendance percentage."""
+    """Return teams ranked by attendance with trash collection metrics."""
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -482,17 +482,36 @@ def get_team_leaderboard():
                     JOIN team_members tm
                         ON tm.team_id = t.id AND tm.member_id = attendee.id
                     GROUP BY t.id, e.id
+                ),
+                trash_totals AS (
+                    SELECT t.id AS team_id,
+                           COALESCE(SUM(
+                               CASE
+                                   WHEN tr.type ILIKE '%%bag%%' THEN tr.amount * 10
+                                   ELSE tr.amount
+                               END
+                           ), 0)::numeric AS total_kg
+                    FROM Teams t
+                    JOIN Accounts admin ON admin.id = t.admin_id
+                    JOIN Events e ON e.username = admin.username
+                    LEFT JOIN Trash tr ON tr.event_id = e.id
+                    GROUP BY t.id
                 )
                 SELECT t.id, t.name,
                        COALESCE(SUM(ea.attendee_count), 0)::numeric
                            / NULLIF(mc.member_count * ec.event_count, 0) * 100
                            AS score,
-                       mc.member_count, ec.event_count
+                       mc.member_count, ec.event_count,
+                       COALESCE(tt.total_kg, 0) / NULLIF(mc.member_count, 0)
+                           AS kg_per_person,
+                       COALESCE(tt.total_kg, 0) / NULLIF(ec.event_count, 0)
+                           AS kg_per_event
                 FROM Teams t
                 JOIN member_counts mc ON mc.team_id = t.id
                 JOIN event_counts ec ON ec.team_id = t.id
                 LEFT JOIN event_attendance ea ON ea.team_id = t.id
-                GROUP BY t.id, t.name, mc.member_count, ec.event_count
+                LEFT JOIN trash_totals tt ON tt.team_id = t.id
+                GROUP BY t.id, t.name, mc.member_count, ec.event_count, tt.total_kg
                 ORDER BY score DESC NULLS LAST, t.name ASC
                 """
             )

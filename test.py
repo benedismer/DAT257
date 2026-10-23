@@ -394,6 +394,9 @@ class DatabaseTests(unittest.TestCase):
         self.assertIn("* 100", query)
         self.assertIn("SUM(ea.attendee_count)", query)
         self.assertIn("mc.member_count", query)
+        self.assertIn("kg_per_person", query)
+        self.assertIn("kg_per_event", query)
+        self.assertIn("tr.amount * 10", query)
         self.assertIn("ORDER BY score DESC NULLS LAST", query)
         self.assertEqual(parameters, [])
 
