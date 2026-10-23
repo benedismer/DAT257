@@ -44,12 +44,18 @@
 			color: var(--accent);
 		}
 		.trash-section { margin-top: 24px; }
+		.trash-section h3 { margin: 0 0 8px; }
 		.trash-collected {
 			margin: 0;
-			font-size: 1rem;
 			color: var(--text-muted);
 		}
-		.trash-collected strong { color: var(--text); margin-right: 6px; }
+		.trash-collected strong {
+			display: block;
+			margin-bottom: 2px;
+			font-size: 2rem;
+			line-height: 1.2;
+			color: var(--accent);
+		}
 
 		.picture-section { margin-top: 24px; }
 		.picture-section h3 { margin-top: 0; }
@@ -98,8 +104,10 @@
 			</section>
 
 			<section class="trash-section" aria-labelledby="trash-title">
+				<h3 id="trash-title">Trash collected</h3>
 				<p class="trash-collected">
-					<strong>Trash Collected:</strong> {{ trash }} kg
+					<strong>{{ trash | default(0, true) }} kg</strong>
+					Total collected for this event
 				</p>
 			</section>
 

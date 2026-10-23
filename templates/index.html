@@ -112,7 +112,8 @@
 		.event-form {
 			display: grid;
 			gap: 10px;
-			min-width: 280px;
+			width: 100%;
+			min-width: 0;
 			font-family: var(--font-ui);
 		}
 
@@ -241,6 +242,13 @@
 		}
 		.leaflet-popup-tip { border: 1px solid var(--border); }
 		.leaflet-popup-content strong { color: var(--text); }
+
+		/* Keep form popups a stable size instead of sizing them from map content. */
+		.leaflet-popup-content {
+			width: 280px !important;
+			max-width: calc(100vw - 64px);
+			margin: 12px;
+		}
 {% endblock %}
 
 {% block content %}
@@ -261,6 +269,8 @@
 					<th scope="col">Rank</th>
 					<th scope="col">Team</th>
 					<th scope="col">Average attendance</th>
+					<th scope="col">Average kg per person</th>
+					<th scope="col">Average kg per event</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -269,9 +279,11 @@
 						<td>{{ loop.index }}</td>
 						<td>{{ team[1] }}</td>
 						<td>{% if team[2] is not none %}{{ "%.2f"|format(team[2]) }}%{% else %}0.00%{% endif %}</td>
+						<td>{{ "%.2f"|format(team[5] or 0) }} kg</td>
+						<td>{{ "%.2f"|format(team[6] or 0) }} kg</td>
 					</tr>
 				{% else %}
-					<tr><td colspan="3">No teams yet.</td></tr>
+					<tr><td colspan="5">No teams yet.</td></tr>
 				{% endfor %}
 			</tbody>
 		</table>
@@ -294,6 +306,21 @@
 		const attendingEventIds = new Set({{ attending_event_ids | default([]) | list | tojson }});
 		const teamEventIds = new Set({{ team_event_ids | default([]) | list | tojson }});
 		const trashLocations = {{ trash_locations | default([]) | tojson }};
+
+		function openMapPopup(latlng, content) {
+			const mapSize = map.getSize();
+			const popupWidth = Math.min(280, Math.max(180, mapSize.x - 40));
+			const popupHeight = Math.max(180, mapSize.y - 32);
+			L.popup({
+				minWidth: popupWidth,
+				maxWidth: popupWidth,
+				maxHeight: popupHeight,
+				autoPan: true,
+				keepInView: true,
+				autoPanPaddingTopLeft: [16, 16],
+				autoPanPaddingBottomRight: [16, 16]
+			}).setLatLng(latlng).setContent(content).openOn(map);
+		}
 
 		function addEventMarker(event) {
 			const attendanceMessage = attendingEventIds.has(event[0])
@@ -401,7 +428,7 @@
 					message.textContent = error.message;
 				}
 			});
-			L.popup().setLatLng(latlng).setContent(form).openOn(map);
+			openMapPopup(latlng, form);
 		}
 
 		map.on("click", (clickEvent) => {
@@ -435,7 +462,7 @@
 					message.textContent = error.message;
 				}
 			});
-			L.popup().setLatLng(clickEvent.latlng).setContent(choice).openOn(map);
+			openMapPopup(clickEvent.latlng, choice);
 		});
 	</script>
 {% endblock %}
