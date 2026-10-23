@@ -275,7 +275,8 @@
 							<input name="time" type="time" value="{{ event[4][:5] }}" required>
 						</label>
 						<label class="bio-label">Bio
-							<textarea name="bio" rows="3" placeholder="Event description...">{{ event[10] or '' }}</textarea>
+							<textarea name="bio" rows="3" maxlength="500"
+									  placeholder="Event description...">{{ event[10] or '' }}</textarea>
 						</label>
 						<input name="latitude" type="hidden" value="{{ event[8] }}" required>
 						<input name="longitude" type="hidden" value="{{ event[9] }}" required>

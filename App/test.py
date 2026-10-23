@@ -289,7 +289,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertIn("FROM TeamMembers", cursor.executed[0][0])
         self.assertEqual(
             cursor.executed[0][1],
-            (7, "Green Gothenburg", "Gothenburg", "Sweden", 7),
+            (7, "Green Gothenburg", "Gothenburg", "Sweden", None, 7),
         )
         self.assertIn("UPDATE Accounts", cursor.executed[1][0])
         self.assertIn("isTeam = TRUE", cursor.executed[1][0])
@@ -330,7 +330,7 @@ class DatabaseTests(unittest.TestCase):
 
         self.assertIsNone(team_id)
         self.assertIn("WHERE member_id = %s", cursor.executed[0][0])
-        self.assertEqual(cursor.executed[0][1], (7, "Another Team", None, None, 7))
+        self.assertEqual(cursor.executed[0][1], (7, "Another Team", None, None, None, 7))
 
     def test_delete_team_removes_owned_team_and_clears_team_flag(self):
         cursor = FakeCursor(fetchone_sequence=[(7,)])
@@ -339,17 +339,54 @@ class DatabaseTests(unittest.TestCase):
             deleted = database.delete_team(42, 7)
 
         self.assertTrue(deleted)
-        self.assertEqual(len(cursor.executed), 2)
-        self.assertIn("DELETE FROM Teams", cursor.executed[0][0])
+        self.assertEqual(len(cursor.executed), 6)
+        self.assertIn("SELECT admin_id", cursor.executed[0][0])
         self.assertEqual(cursor.executed[0][1], (42, 7))
-        self.assertIn("isTeam = FALSE", cursor.executed[1][0])
+        self.assertIn("DELETE FROM Subscriptions", cursor.executed[1][0])
         self.assertEqual(cursor.executed[1][1], (7,))
+        self.assertIn("DELETE FROM TeamMembers", cursor.executed[2][0])
+        self.assertEqual(cursor.executed[2][1], (42,))
+        self.assertIn("DELETE FROM Pictures", cursor.executed[3][0])
+        self.assertEqual(cursor.executed[3][1], (42,))
+        self.assertIn("DELETE FROM Teams", cursor.executed[4][0])
+        self.assertEqual(cursor.executed[4][1], (42,))
+        self.assertIn("isTeam = FALSE", cursor.executed[5][0])
+        self.assertEqual(cursor.executed[5][1], (7,))
 
     def test_delete_team_returns_false_for_non_owner(self):
         cursor = FakeCursor(fetchone_sequence=[None])
 
         with database_connection(cursor):
             deleted = database.delete_team(42, 7)
+
+        self.assertFalse(deleted)
+        self.assertEqual(len(cursor.executed), 1)
+        self.assertNotIn("DELETE FROM", cursor.executed[0][0])
+
+    def test_delete_account_cleans_id_and_username_references(self):
+        cursor = FakeCursor(fetchone_sequence=[("alice",)])
+
+        with database_connection(cursor):
+            deleted = database.delete_account(7)
+
+        self.assertTrue(deleted)
+        self.assertEqual(len(cursor.executed), 5)
+        self.assertIn("SELECT username FROM Accounts", cursor.executed[0][0])
+        self.assertEqual(cursor.executed[0][1], (7,))
+        self.assertIn("DELETE FROM Subscriptions", cursor.executed[1][0])
+        self.assertEqual(cursor.executed[1][1], (7, 7))
+        self.assertIn("DELETE FROM Trash", cursor.executed[2][0])
+        self.assertEqual(cursor.executed[2][1], ("alice", "alice"))
+        self.assertIn("DELETE FROM Events", cursor.executed[3][0])
+        self.assertEqual(cursor.executed[3][1], ("alice",))
+        self.assertIn("DELETE FROM Accounts", cursor.executed[4][0])
+        self.assertEqual(cursor.executed[4][1], (7,))
+
+    def test_delete_account_returns_false_without_deleting_missing_account(self):
+        cursor = FakeCursor(fetchone_sequence=[None])
+
+        with database_connection(cursor):
+            deleted = database.delete_account(404)
 
         self.assertFalse(deleted)
         self.assertEqual(len(cursor.executed), 1)
@@ -394,11 +431,14 @@ class DatabaseTests(unittest.TestCase):
         self.assertIn("* 100", query)
         self.assertIn("SUM(ea.attendee_count)", query)
         self.assertIn("mc.member_count", query)
+        self.assertIn("kg_per_person_per_event", query)
+        self.assertIn("NULLIF(mc.member_count * ec.event_count, 0)", query)
+        self.assertIn("tr.amount * 10", query)
         self.assertIn("ORDER BY score DESC NULLS LAST", query)
         self.assertEqual(parameters, [])
 
     def test_get_team_profile_returns_team_and_leader_and_members(self):
-        team = (4, "Book Club", "Gothenburg", "Sweden", 7, "alice")
+        team = (4, "Book Club", "Gothenburg", "Sweden", 7, "alice", None)
         members = [(7, "alice", True), (9, "bob", False)]
         cursor = FakeCursor(rows=members, fetchone_sequence=[team])
 
@@ -703,6 +743,46 @@ class RouteTests(unittest.TestCase):
         response = self.client.delete("/teams/4")
 
         self.assertEqual(response.status_code, 401)
+        self.assertEqual(
+            response.json,
+            {"error": "You must be logged in to delete a team."},
+        )
+
+    def test_guest_cannot_delete_account(self):
+        response = self.client.delete("/account")
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(
+            response.json,
+            {"error": "You must be logged in to delete your account."},
+        )
+
+    @patch.object(app_module, "delete_account", return_value=True)
+    def test_logged_in_user_can_delete_only_their_session_account(self, mock_delete_account):
+        self.login_session(23)
+
+        response = self.client.delete("/account")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, {"deleted": True})
+        mock_delete_account.assert_called_once_with(23)
+        with self.client.session_transaction() as session:
+            self.assertNotIn("user_id", session)
+
+    @patch.object(app_module, "delete_account", return_value=False)
+    def test_account_delete_returns_not_found_when_database_delete_fails(
+        self, mock_delete_account
+    ):
+        self.login_session(23)
+
+        response = self.client.delete("/account")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            response.json,
+            {"error": "Account not found or could not be deleted."},
+        )
+        mock_delete_account.assert_called_once_with(23)
 
     @patch.object(app_module, "delete_team", return_value=True)
     def test_team_owner_can_delete_team(self, mock_delete_team):
@@ -719,7 +799,20 @@ class RouteTests(unittest.TestCase):
         response = self.client.delete("/teams/4")
 
         self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            response.json,
+            {"error": "Team not found or you are not its owner."},
+        )
         mock_delete_team.assert_called_once_with(4, 7)
+
+    @patch.object(app_module, "delete_team", return_value=True)
+    def test_team_delete_uses_team_id_from_url(self, mock_delete_team):
+        self.login_session(23)
+
+        response = self.client.delete("/teams/987")
+
+        self.assertEqual(response.status_code, 200)
+        mock_delete_team.assert_called_once_with(987, 23)
 
     @patch.object(app_module, "create_team", return_value=1)
     def test_logged_in_user_can_create_team(self, mock_create_team):
@@ -730,7 +823,9 @@ class RouteTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 302)  # redirect to home
-        mock_create_team.assert_called_once_with(7, "Green Squad", "Gothenburg", "Sweden")
+        mock_create_team.assert_called_once_with(
+            7, "Green Squad", "Gothenburg", "Sweden", ""
+        )
 
     @patch.object(app_module, "create_team", return_value=1)
     def test_create_team_without_location_is_allowed(self, mock_create_team):
@@ -741,7 +836,7 @@ class RouteTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        mock_create_team.assert_called_once_with(7, "Wanderers", None, None)
+        mock_create_team.assert_called_once_with(7, "Wanderers", None, None, "")
 
     @patch.object(app_module, "create_team", return_value=1)
     def test_create_team_requires_team_name(self, mock_create_team):

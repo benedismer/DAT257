@@ -2,13 +2,13 @@
 seed.py — populate the database with realistic fake data for development.
 
 Run inside the web container:
-    docker exec dat257-web-1 python seed.py
+    docker exec dat257-web-1 python App/seed.py
 
 Or locally (if you have psycopg + env vars set):
-    python seed.py
+    python App/seed.py
 
 Pass --reset to wipe all existing rows before inserting:
-    docker exec dat257-web-1 python seed.py --reset
+    docker exec dat257-web-1 python App/seed.py --reset
 """
 
 import sys
@@ -20,8 +20,9 @@ from werkzeug.security import generate_password_hash
 
 from database.database import get_db_connection
 
-PICTURE_SEED_FOLDER = Path(__file__).resolve().parent / "Picture_Seed"
-PICTURE_FOLDER = Path(__file__).resolve().parent / "pictures"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PICTURE_SEED_FOLDER = PROJECT_ROOT / "Picture_Seed"
+PICTURE_FOLDER = PROJECT_ROOT / "pictures"
 PICTURE_SUFFIXES = {".gif", ".jpeg", ".jpg", ".png", ".webp"}
 
 # ---------------------------------------------------------------------------
@@ -135,11 +136,38 @@ ATTENDANCE = [
     (9, "bob"),     # past event
 ]
 
+# (event index from EVENTS list above, contributor_username, amount, type)
+# Bag entries are converted to 10 kg by get_trash_by_event().
+TRASH = [
+    (0, "alice",   3, "bags"),
+    (0, "bob",     8, "plastic"),
+    (1, "charlie", 2, "bags"),
+    (1, "diana",   5, "glass"),
+    (2, "eve",     12, "plastic"),
+    (3, "diana",   4, "bags"),
+    (3, "bob",     7, "metal"),
+    (4, "charlie", 9, "plastic"),
+    (5, "EcoRiders", 3, "bags"),
+    (6, "bob",     6, "glass"),
+    (7, "alice",   2, "bags"),
+    (8, "alice",   5, "plastic"),
+    (8, "bob",     3, "bags"),
+    (9, "bob",     4, "glass"),
+    (10, "frank",   6, "plastic"),
+]
+
 PHOTOS = [
     # (event index, uploader username, team username, filename)
     (0, "alice", "GreenCrew", "river-cleanup-alice.png"),
     (0, "bob", "GreenCrew", "river-cleanup-bob.png"),
+    # Extra River cleanup photos keep one seeded event above the pagination threshold.
+    (0, "charlie", "GreenCrew", "park-sorting-session-charlie.png"),
+    (0, "diana", "GreenCrew", "beach-sweep-diana.png"),
     (1, "charlie", "EcoRiders", "park-sorting-session-charlie.png"),
+    # Extra records keep Alice's user page and Clean Coast's team page
+    # above the pagination threshold.
+    (1, "alice", "CleanCoast", "river-cleanup-alice.png"),
+    (4, "alice", "CleanCoast", "river-cleanup-bob.png"),
     (3, "diana", "CleanCoast", "beach-sweep-diana.png"),
     (4, "bob", "CleanCoast", "harbour-rubbish-run-bob.png"),
     (6, "eve", "GreenCrew", "neighbourhood-recycling-eve.png"),
@@ -154,6 +182,7 @@ def reset(cur):
     """Delete all rows in dependency order."""
     cur.execute("DELETE FROM pictures")
     cur.execute("DELETE FROM eventattendance")
+    cur.execute("DELETE FROM trash")
     cur.execute("DELETE FROM trashlocations")
     cur.execute("DELETE FROM teammembers")
     cur.execute("DELETE FROM events")
@@ -287,6 +316,21 @@ def insert_attendance(cur, event_ids, account_ids):
         )
     print(f"  ✓ {len(all_pairs)} attendance records")
 
+
+def insert_trash(cur, event_ids):
+    for event_index, contributor, amount, trash_type in TRASH:
+        cur.execute(
+            """
+            INSERT INTO trash (event_id, account_name, amount, type)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (event_id, account_name, type) DO UPDATE
+                SET amount = EXCLUDED.amount
+            """,
+            (event_ids[event_index], contributor, amount, trash_type),
+        )
+    print(f"  ✓ {len(TRASH)} trash records")
+
+
 def insert_picture(cur, event_id, account_id, team_id, filename):
     cur.execute(
         """
@@ -331,6 +375,7 @@ def main():
     print("Connecting to database...")
     with get_db_connection() as conn:
         with conn.cursor() as cur:
+            cur.execute("ALTER TABLE teams ADD COLUMN IF NOT EXISTS bio TEXT")
             if do_reset:
                 print("Resetting data...")
                 reset(cur)
@@ -343,6 +388,7 @@ def main():
             insert_subscriptions(cur, account_ids)
             insert_team_members(cur, account_ids)
             insert_attendance(cur, event_ids, account_ids)
+            insert_trash(cur, event_ids)
             copy_picture_seed()
             insert_pictures(cur, event_ids, account_ids, team_ids)
 

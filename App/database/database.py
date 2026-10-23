@@ -452,7 +452,7 @@ def get_teams(search=None, member_id=None):
 
 
 def get_team_leaderboard():
-    """Return teams ranked by average member attendance percentage."""
+    """Return teams ranked by attendance with trash collection metrics."""
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -488,19 +488,38 @@ def get_team_leaderboard():
                     JOIN team_members tm
                         ON tm.team_id = t.id AND tm.member_id = attendee.id
                     GROUP BY t.id, e.id
+                ),
+                trash_totals AS (
+                    SELECT t.id AS team_id,
+                           COALESCE(SUM(
+                               CASE
+                                   WHEN tr.type ILIKE '%%bag%%' THEN tr.amount * 10
+                                   ELSE tr.amount
+                               END
+                           ), 0)::numeric AS total_kg
+                    FROM Teams t
+                    JOIN Accounts admin ON admin.id = t.admin_id
+                    JOIN Events e ON e.username = admin.username
+                    LEFT JOIN Trash tr ON tr.event_id = e.id
+                    GROUP BY t.id
                 )
                 SELECT t.id, t.name,
                        COALESCE(SUM(ea.attendee_count), 0)::numeric
                            / NULLIF(mc.member_count * ec.event_count, 0) * 100
                            AS score,
-                       mc.member_count, ec.event_count
+                       mc.member_count, ec.event_count,
+                       COALESCE(tt.total_kg, 0)
+                           / NULLIF(mc.member_count * ec.event_count, 0)
+                           AS kg_per_person_per_event
                 FROM Teams t
                 JOIN member_counts mc ON mc.team_id = t.id
                 JOIN event_counts ec ON ec.team_id = t.id
                 LEFT JOIN event_attendance ea ON ea.team_id = t.id
-                GROUP BY t.id, t.name, mc.member_count, ec.event_count
+                LEFT JOIN trash_totals tt ON tt.team_id = t.id
+                GROUP BY t.id, t.name, mc.member_count, ec.event_count, tt.total_kg
                 ORDER BY score DESC NULLS LAST, t.name ASC
-                """
+                """,
+                [],
             )
             return cur.fetchall()
 
@@ -755,7 +774,7 @@ def change_password(username, password):
 
 
 
-def create_team(admin_id, team_name, city, country):
+def create_team(admin_id, team_name, city, country, bio=None):
     """Create a team for an account and mark the account as isTeam=TRUE.
 
     Returns the new team id on success, or None if the account already owns or
@@ -766,8 +785,8 @@ def create_team(admin_id, team_name, city, country):
             try: 
                 cur.execute(
                     """
-                    INSERT INTO Teams (admin_id, name, city, country)
-                    SELECT %s, %s, %s, %s
+                    INSERT INTO Teams (admin_id, name, city, country, bio)
+                    SELECT %s, %s, %s, %s, %s
                     WHERE NOT EXISTS (
                         SELECT 1
                         FROM TeamMembers
@@ -775,7 +794,7 @@ def create_team(admin_id, team_name, city, country):
                     )
                     RETURNING id
                     """,
-                    (admin_id, team_name, city or None, country or None, admin_id),
+                    (admin_id, team_name, city or None, country or None, bio or None, admin_id),
                 )
                 row = cur.fetchone()
                 if row is None:
@@ -791,25 +810,69 @@ def create_team(admin_id, team_name, city, country):
 
 
 def delete_team(team_id, admin_id):
-    """Delete a team owned by the account and clear its team status."""
+    """Delete an owned team and all records that reference its team ID."""
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                DELETE FROM Teams
+                SELECT admin_id
+                FROM Teams
                 WHERE id = %s AND admin_id = %s
-                RETURNING admin_id
                 """,
                 (team_id, admin_id),
             )
-            deleted = cur.fetchone()
-            if deleted is None:
+            owner = cur.fetchone()
+            if owner is None:
                 return False
+
+            # Subscriptions store the followed team account ID, not Teams.id.
+            cur.execute("DELETE FROM Subscriptions WHERE team_id = %s", (owner[0],))
+            cur.execute("DELETE FROM TeamMembers WHERE team_id = %s", (team_id,))
+            cur.execute("DELETE FROM Pictures WHERE team_id = %s", (team_id,))
+            cur.execute(
+                """
+                DELETE FROM Teams
+                WHERE id = %s
+                """,
+                (team_id,),
+            )
             cur.execute(
                 "UPDATE Accounts SET isTeam = FALSE WHERE id = %s",
                 (admin_id,),
             )
             return True
+
+
+def delete_account(account_id):
+    """Delete one account by ID and clean up rows without cascading foreign keys."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT username FROM Accounts WHERE id = %s",
+                (account_id,),
+            )
+            account = cur.fetchone()
+            if account is None:
+                return False
+
+            username = account[0]
+            cur.execute(
+                "DELETE FROM Subscriptions WHERE subscriber_id = %s OR team_id = %s",
+                (account_id, account_id),
+            )
+            cur.execute(
+                """
+                DELETE FROM Trash
+                WHERE account_name = %s
+                   OR event_id IN (
+                       SELECT id FROM Events WHERE username = %s
+                   )
+                """,
+                (username, username),
+            )
+            cur.execute("DELETE FROM Events WHERE username = %s", (username,))
+            cur.execute("DELETE FROM Accounts WHERE id = %s", (account_id,))
+            return cur.rowcount == 1
 
 
 def get_username_by_id(account_id):
@@ -938,7 +1001,7 @@ def get_team_profile(team_id):
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT t.id, t.name, t.city, t.country, t.admin_id, a.username
+                SELECT t.id, t.name, t.city, t.country, t.admin_id, a.username, t.bio
                 FROM Teams t
                 JOIN Accounts a ON t.admin_id = a.id
                 WHERE t.id = %s

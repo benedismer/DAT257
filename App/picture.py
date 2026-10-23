@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-PICTURE_FOLDER = Path(__file__).resolve().parent / "pictures"
+PICTURE_FOLDER = Path(__file__).resolve().parent.parent / "pictures"
 PICTURE_SUFFIXES = {".gif", ".jpeg", ".jpg", ".png", ".webp"}
 
 

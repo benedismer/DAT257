@@ -40,7 +40,8 @@ CREATE TABLE Teams (
 	admin_id INTEGER NOT NULL UNIQUE REFERENCES Accounts(id) ON DELETE CASCADE,
 	name TEXT NOT NULL,
 	city TEXT,
-	country TEXT
+	country TEXT,
+	bio TEXT
 );
 
 CREATE TABLE TeamMembers (

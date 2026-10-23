@@ -112,7 +112,8 @@
 		.event-form {
 			display: grid;
 			gap: 10px;
-			min-width: 280px;
+			width: 100%;
+			min-width: 0;
 			font-family: var(--font-ui);
 		}
 
@@ -241,6 +242,66 @@
 		}
 		.leaflet-popup-tip { border: 1px solid var(--border); }
 		.leaflet-popup-content strong { color: var(--text); }
+
+		/* Keep form popups a stable size instead of sizing them from map content. */
+		.leaflet-popup-content {
+			width: 280px !important;
+			max-width: calc(100vw - 64px);
+			margin: 12px;
+		}
+
+		.event-popup {
+			font-family: var(--font-ui);
+			font-size: 0.95rem;
+			line-height: 1.5;
+		}
+
+		.event-popup .event-popup-title {
+			display: block;
+			margin-bottom: 12px;
+			font-size: 1.2rem;
+			line-height: 1.3;
+			font-weight: 700;
+			color: var(--text);
+		}
+
+		.event-popup .event-popup-details {
+			display: grid;
+			gap: 8px;
+			margin: 0;
+		}
+
+		.event-popup .event-popup-detail {
+			display: grid;
+			grid-template-columns: 76px 1fr;
+			gap: 8px;
+			align-items: baseline;
+		}
+
+		.event-popup .event-popup-label {
+			font-size: 0.72rem;
+			font-weight: 600;
+			letter-spacing: 0.03em;
+			color: var(--text-muted);
+			text-transform: uppercase;
+		}
+
+		.event-popup .event-popup-value {
+			color: var(--text);
+		}
+
+		.event-popup .event-popup-attendance {
+			margin: 12px 0 0;
+			padding-top: 10px;
+			border-top: 1px solid var(--border);
+			font-size: 0.82rem;
+			color: var(--accent);
+		}
+
+		.leaflet-popup.event-popup .leaflet-popup-content {
+			width: 340px !important;
+			max-width: calc(100vw - 48px);
+		}
 {% endblock %}
 
 {% block content %}
@@ -261,6 +322,7 @@
 					<th scope="col">Rank</th>
 					<th scope="col">Team</th>
 					<th scope="col">Average attendance</th>
+					<th scope="col">Average kg per person per event</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -269,9 +331,10 @@
 						<td>{{ loop.index }}</td>
 						<td>{{ team[1] }}</td>
 						<td>{% if team[2] is not none %}{{ "%.2f"|format(team[2]) }}%{% else %}0.00%{% endif %}</td>
+						<td>{{ "%.2f"|format(team[5] or 0) }} kg</td>
 					</tr>
 				{% else %}
-					<tr><td colspan="3">No teams yet.</td></tr>
+					<tr><td colspan="4">No teams yet.</td></tr>
 				{% endfor %}
 			</tbody>
 		</table>
@@ -295,10 +358,22 @@
 		const teamEventIds = new Set({{ team_event_ids | default([]) | list | tojson }});
 		const trashLocations = {{ trash_locations | default([]) | tojson }};
 
+		function openMapPopup(latlng, content) {
+			const mapSize = map.getSize();
+			const popupWidth = Math.min(280, Math.max(180, mapSize.x - 40));
+			const popupHeight = Math.max(180, mapSize.y - 32);
+			L.popup({
+				minWidth: popupWidth,
+				maxWidth: popupWidth,
+				maxHeight: popupHeight,
+				autoPan: true,
+				keepInView: true,
+				autoPanPaddingTopLeft: [16, 16],
+				autoPanPaddingBottomRight: [16, 16]
+			}).setLatLng(latlng).setContent(content).openOn(map);
+		}
+
 		function addEventMarker(event) {
-			const attendanceMessage = attendingEventIds.has(event[0])
-				? "<br><strong>You are attending this event.</strong>"
-				: "";
 			const markerOptions = teamEventIds.has(event[0])
 				? {
 					icon: L.divIcon({
@@ -310,7 +385,34 @@
 				: {};
 			L.marker([event[6], event[7]], markerOptions)
 				.addTo(map)
-				.bindPopup(`<strong>${event[1]}</strong><br>${event[5]} at ${event[4]}${attendanceMessage}`);
+				.bindPopup(`
+					<div class="event-popup">
+						<strong class="event-popup-title">${event[1]}</strong>
+						<div class="event-popup-details">
+							<div class="event-popup-detail">
+								<span class="event-popup-label">Date</span>
+								<span class="event-popup-value">${event[5]}</span>
+							</div>
+							<div class="event-popup-detail">
+								<span class="event-popup-label">Time</span>
+								<span class="event-popup-value">${event[4]}</span>
+							</div>
+							${[event[3], event[2]].filter(Boolean).length
+								? `<div class="event-popup-detail">
+									<span class="event-popup-label">Location</span>
+									<span class="event-popup-value">${[event[3], event[2]].filter(Boolean).join(", ")}</span>
+								</div>`
+								: ""}
+							<div class="event-popup-detail">
+								<span class="event-popup-label">Organizer</span>
+								<span class="event-popup-value">${event[8] || "Not specified"}</span>
+							</div>
+						</div>
+						${attendingEventIds.has(event[0])
+							? '<p class="event-popup-attendance">You are attending this event.</p>'
+							: ""}
+					</div>
+				`, { className: "event-popup" });
 		}
 
 		events.forEach(addEventMarker);
@@ -368,7 +470,7 @@
 				<label>City <input name="city" placeholder="Gothenburg"></label>
 				<label>Date <input name="date" type="date" min="${new Date().toISOString().split("T")[0]}" required></label>
 				<label>Start time <input name="time" type="time" required></label>
-				<label>What should volunteers know?
+				<label>What should volunteers know? (up to 500 characters)
 					<textarea name="bio" maxlength="500" placeholder="Bring gloves, bags, and good energy..."></textarea>
 				</label>
 				<div class="form-actions">
@@ -401,7 +503,7 @@
 					message.textContent = error.message;
 				}
 			});
-			L.popup().setLatLng(latlng).setContent(form).openOn(map);
+			openMapPopup(latlng, form);
 		}
 
 		map.on("click", (clickEvent) => {
@@ -435,7 +537,7 @@
 					message.textContent = error.message;
 				}
 			});
-			L.popup().setLatLng(clickEvent.latlng).setContent(choice).openOn(map);
+			openMapPopup(clickEvent.latlng, choice);
 		});
 	</script>
 {% endblock %}

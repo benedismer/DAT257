@@ -3,6 +3,7 @@ import threading
 import time as time_module
 from uuid import uuid4
 from datetime import date, time
+from pathlib import Path
 import psycopg
 from user_info import UserInfo
 from werkzeug.utils import secure_filename
@@ -27,6 +28,7 @@ from database.database import (
     create_team,
     delete_team,
     delete_event,
+    delete_account,
     delete_old_events,
     delete_old_pictures,
     get_old_event_picture_paths,
@@ -67,7 +69,8 @@ from database.database import (
     pictures_for_user,
 )
 
-app = Flask(__name__, template_folder="templates")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+app = Flask(__name__, template_folder=PROJECT_ROOT / "templates")
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me") # login session
 
 
@@ -297,6 +300,21 @@ def user_detail(user_id):
     )
 
 
+@app.get("/users")
+def user_directory():
+    user_id = session.get("user_id")
+    if user_id is None:
+        return redirect(url_for("login"))
+    search = request.args.get("q", "").strip()
+    team_member_id = user_id if request.args.get("view") == "team" else None
+    return render_template(
+        "Users.html",
+        users=get_users(search, user_id, team_member_id),
+        search=search,
+        team_only=team_member_id is not None,
+    )
+
+
 @app.get("/teams/<int:team_id>")
 def team_detail(team_id):
     team, members = get_team_profile(team_id)
@@ -377,6 +395,9 @@ def edit_event(event_id):
         return jsonify(error="Missing fields: " + ", ".join(missing_fields)), 400
 
     try:
+        bio = str(data.get("bio", "")).strip()
+        if len(bio) > 500:
+            return jsonify(error="Event bio must be 500 characters or fewer."), 400
         event_id = update_event(
             event_id,
             username,
@@ -387,7 +408,7 @@ def edit_event(event_id):
             date.fromisoformat(str(data["date"])),
             float(data["latitude"]),
             float(data["longitude"]),
-            str(data.get("bio", "")).strip() or None,
+            bio or None,
         )
     except (TypeError, ValueError):
         return jsonify(error="Invalid event data."), 400
@@ -425,11 +446,11 @@ def log_trash(event_id):
             message_type = "error"
         ))
         #return jsonify(error="You can only log trash for events that have already taken place."), 400
-    if amount is '':
+    if amount == '':
         return jsonify(error="Amount must not be NULL"), 400
     if int(amount) < 1:
         return jsonify(error="Amount must be greater than 1"), 400
-    if type is '':
+    if type == '':
         return jsonify(error="Type must not be NULL"), 400
     if not add_trash(event_id, username, amount, type):
         return jsonify(error="Could not log trash."), 401
@@ -578,8 +599,16 @@ def create_team_route():
 
     city = str(data.get("city", "")).strip() or None
     country = str(data.get("country", "")).strip() or None
+    bio = str(data.get("bio", "")).strip()
+    if len(bio) > 500:
+        return render_template(
+            "login.html",
+            message="Your team bio must be 500 characters or fewer.",
+            message_type="error",
+            create_team_error=True,
+        ), 400
 
-    team_id = create_team(user_id, team_name, city, country)
+    team_id = create_team(user_id, team_name, city, country, bio)
     if team_id is None:
         return render_template(
             "login.html",
@@ -599,6 +628,18 @@ def logout():
     # Send them back to the home page.
     return redirect(url_for("login"))
 
+
+@app.delete("/account")
+def delete_account_route():
+    account_id = session.get("user_id")
+    if account_id is None:
+        return jsonify(error="You must be logged in to delete your account."), 401
+    if not delete_account(account_id):
+        return jsonify(error="Account not found or could not be deleted."), 404
+    session.pop("user_id", None)
+    return jsonify(deleted=True), 200
+
+
 @app.post("/events")
 def create_event():
     data = request.get_json(silent=True) or request.form
@@ -610,6 +651,9 @@ def create_event():
         # u r only allowed to create an event if you are logged in
         return jsonify(error="You must be logged in to create an event."), 401
     try:
+        bio = str(data.get("bio", "")).strip()
+        if len(bio) > 500:
+            return jsonify(error="Event bio must be 500 characters or fewer."), 400
         country = str(data.get("country", "")).strip() or None
         city = str(data.get("city", "")).strip() or None
         event_id = add_events(
@@ -664,6 +708,9 @@ def create_event_at_trash_location(location_id):
     if missing_fields:
         return jsonify(error="Missing fields: " + ", ".join(missing_fields)), 400
     try:
+        bio = str(data.get("bio", "")).strip()
+        if len(bio) > 500:
+            return jsonify(error="Event bio must be 500 characters or fewer."), 400
         event_id = create_event_from_trash_location(
             location_id,
             str(data["event_name"]).strip(),
@@ -672,7 +719,7 @@ def create_event_at_trash_location(location_id):
             time.fromisoformat(str(data["time"])),
             date.fromisoformat(str(data["date"])),
             username,
-            str(data.get("bio", "")).strip() or None,
+            bio or None,
         )
     except (TypeError, ValueError) as exc:
         return jsonify(error=f"Invalid event data: {exc}"), 400

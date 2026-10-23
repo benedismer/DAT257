@@ -19,10 +19,8 @@ Two containers that run side by side:
 | `web`     | The Flask app | http://localhost:5000 |
 | `db`      | PostgreSQL 16 database | used by `web` internally |
 
-The app has two routes to start with:
-
-- `GET /` → `Hello, World!`
-- `GET /health` → JSON showing whether the app can reach the database
+The app provides a map-based home page at `GET /`. The `GET /health` endpoint
+returns JSON showing whether the app can reach the database.
 
 Your source code is mounted into the `web` container, so when you edit a `.py`
 file the server **reloads automatically** — no rebuild needed.
@@ -31,35 +29,40 @@ file the server **reloads automatically** — no rebuild needed.
 
 ## Using Docker 
 
-The Docker configuration lives in the **`docker/`** folder, while the
-application code (`app.py`, `database/`) lives in the project **root**. You can
-still run every `make` command from the project root — a small root `Makefile`
-forwards commands to `docker/Makefile`.
+The Docker configuration lives in the **`docker/`** folder, while the Python
+application files live in **`App/`**. Run every `make` command from the project
+root.
 
 ```
 DAT257/
-├── app.py                 # Flask app (root)
-├── database/              # DB connection + schema.sql (root)
-├── .env                   # your local secrets (root, git-ignored)
-├── Makefile               # thin forwarder → docker/Makefile
-└── docker/                # all Docker config lives here
+├── README.md
+├── App/                    # Python application files
+│   ├── app.py
+│   ├── database/
+│   ├── picture.py
+│   └── ...
+├── database/               # SQL schema
+├── templates/
+├── pictures/
+├── .env
+├── Makefile
+└── docker/
     ├── docker-compose.yml
     ├── Dockerfile
-    ├── Makefile           # the real make targets
+    ├── Makefile
     ├── requirements.txt
-    ├── .dockerignore      # (actually at the root — see note below)
     └── .env.example
 ```
 
 - **`docker/docker-compose.yml`** defines the two containers (`web` and `db`) and
   wires them together on a private network. The app finds the database at the
   hostname `db` (that's why `POSTGRES_HOST=db` in `.env`). Its paths point up to
-  the project root (build context, source mount, and `schema.sql`).
+  the project root directory (build context, source mount, and `tables.sql`).
 - **`docker/Dockerfile`** describes to docker how to build the `web` image
   (Python + our dependencies + the app code). It describes all the tools in the
   toolbox and how it is used.
 - **`docker/requirements.txt`** pins the exact Python packages. 
-- **`.env`** (yours, local, git-ignored, in the **project root**) holds
+- **`.env`** (yours, local, git-ignored, in the **project root directory**) holds
    credentials and the map API key. You can not
    commit your login information to the database or things like that where everyone can see it
    but since docker controls everything abot the setup docker needs to know these things. The 
@@ -67,10 +70,9 @@ DAT257/
    without letting people on git or people inspecting your web page code know. 
   **`docker/.env.example`** (committed) is the template. You can look here to see
   what docker needs you to fill in into your personal `.env` file.
-- **`docker/Makefile`** is just shortcuts for the `docker compose` commands above;
-  the **root `Makefile`** forwards to it so `make ...` works from the root.
-- **`.dockerignore`** sits in the project root (that is where Docker reads it from
-  during a build, since the build context is the root).
+- **`docker/Makefile`** is a set of shortcuts for the `docker compose` commands
+  above. Run it from project root.
+- **`.dockerignore`** sits in project root, which is the Docker build context.
 - The database's data lives in a Docker **volume** (`pgdata`) so it survives
   `make down`. Only `make teardown` deletes it.
 
@@ -149,7 +151,7 @@ make --version
 Do this once, after cloning the repo.
 
 1. **Create your local environment file** from the template. The template lives
-   in `docker/`, but your `.env` must go in the **project root**:
+   in `docker/`, but your `.env` must go in the **project root directory**:
    ```bash
    cp docker/.env.example .env       # macOS / Linux / WSL
    ```
@@ -172,7 +174,7 @@ Do this once, after cloning the repo.
    make up-build
    ```
    The first run downloads images and builds the app, so it takes a few minutes.
-   When it's done, open http://localhost:5000 — you should see `Hello, World!`.
+   When it's done, open http://localhost:5000 to use Rubby.
 
 ---
 
@@ -218,8 +220,8 @@ these:
 | `make rebuild` | `docker compose -f docker/docker-compose.yml build --no-cache` |
 | `make ps` | `docker compose -f docker/docker-compose.yml ps` |
 | `make logs` | `docker compose -f docker/docker-compose.yml logs -f` |
-| `make seed` | `docker compose -f docker/docker-compose.yml exec web python seed.py` |
-| `make seed-reset` | `docker compose -f docker/docker-compose.yml exec web python seed.py --reset` |
+| `make seed` | `docker compose -f docker/docker-compose.yml exec web python App/seed.py` |
+| `make seed-reset` | `docker compose -f docker/docker-compose.yml exec web python App/seed.py --reset` |
 
 > Tip: `docker compose` reads variables from `.env` in the directory you run it
 > from, so run these from the **project root** (where your `.env` lives).
@@ -271,14 +273,14 @@ make up-web
 
 ## Database schema
 
-The database structure lives in **`database/schema.sql`** (the single source of
+The database structure lives in **`database/tables.sql`** (the single source of
 truth for the tables). `docker-compose.yml` mounts it into the Postgres container's 
 auto-init folder, so it runs **automatically** the first time the database is created.
 
 - First `make up` on a fresh clone → the database is created **and** the tables
-  from `schema.sql` are loaded. Nothing manual.
+  from `tables.sql` are loaded. Nothing manual.
 - `make down` then `make up` → your data (and tables) are still there.
-- `make teardown` then `make up` → the database is wiped and `schema.sql` runs
+- `make teardown` then `make up` → the database is wiped and `tables.sql` runs
   again from scratch.
 
 Check the tables exist any time:
@@ -290,14 +292,14 @@ make db-shell     # opens a psql prompt inside the db container
 ### Changing the schema
 
 Because auto-init only runs when the database is **empty**, editing
-`schema.sql` does **not** update a database that already has data. You have two
+`tables.sql` does **not** update a database that already has data. You have two
 options:
 
 **Reset (easiest, DELETES all local data).** Good during early
 development when you don't care about the data in your local database:
 ```bash
 make teardown     # removes containers AND the pgdata volume
-make up           # recreates the DB and re-runs schema.sql with your changes
+make up           # recreates the DB and re-runs tables.sql with your changes
 ```
 You can alter tables but that is not needed to deal with in our development
 
@@ -310,9 +312,9 @@ Start Docker Desktop (Windows/macOS) and wait for "Engine running", or start the
 service on Linux: `sudo systemctl start docker`.
 
 **Port 5000 is already in use.**
-Something else is using the port. Stop it, or change the mapping in
-`docker/docker-compose.yml` from `"5000:5000"` to e.g. `"5001:5000"`, then use
-http://localhost:5001.
+Something else is using the port. Stop it before starting Rubby, or temporarily
+change the host side of the mapping in `docker/docker-compose.yml` from
+`"5000:5000"` to e.g. `"5001:5000"`, then use http://localhost:5001.
 
 **`make: command not found` (Windows).**
 Use a WSL2 Ubuntu terminal, or use the raw `docker compose` commands from

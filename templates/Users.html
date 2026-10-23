@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Users{% endblock %}
+
+{% block styles %}
+		.page {
+			width: min(860px, calc(100% - 32px));
+			margin: 0 auto;
+			padding: 40px 0 72px;
+		}
+		.user-list {
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			overflow: hidden;
+		}
+		.user-row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 16px;
+			padding: 16px 20px;
+		}
+		.user-row + .user-row { border-top: 1px dashed var(--border); }
+		.user-detail { color: var(--text-muted); }
+		.empty-state { color: var(--text-muted); }
+{% endblock %}
+
+{% block content %}
+	<div class="page">
+		<h2>{% if team_only %}My team users{% else %}Users{% endif %}</h2>
+		<form method="get" action="{{ url_for('user_directory') }}">
+			<input name="q" type="search" value="{{ search }}"
+				   placeholder="Search users..." aria-label="Search users">
+			{% if team_only %}<input type="hidden" name="view" value="team">{% endif %}
+			<button type="submit">Search</button>
+		</form>
+		<section class="user-list" aria-live="polite">
+			{% for user in users %}
+				<article class="user-row">
+					<div>
+						<a href="{{ url_for('user_detail', user_id=user[0]) }}">{{ user[1] }}</a>
+						{% if user[2] %}<div class="user-detail">Subscribed</div>{% endif %}
+					</div>
+				</article>
+			{% else %}
+				<p class="empty-state">No users found.</p>
+			{% endfor %}
+		</section>
+	</div>
+{% endblock %}

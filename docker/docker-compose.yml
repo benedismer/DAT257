@@ -27,10 +27,10 @@ services:
     ports:
 
       # host:container -> visit http://localhost:5000 in your browser.
-      - "5050:5000"
+      - "5000:5000"
     volumes:
       # Mount the project root into the container so edits reload live (dev only).
-      - ..:/app
+      - ..:/App/
     depends_on:
       # Wait until Postgres reports healthy before starting the app.
       db:
@@ -51,7 +51,7 @@ services:
       # pgdata volume is empty: fresh clone or after `make teardown`). This is
       # why `make up` gives you a ready-to-use database with no manual steps.
       # ":ro" mounts it read-only. See the README "Changing the schema" section.
-      - ../database/tables.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+      - ../database/tables.sql:/docker-entrypoint-initdb.d/tables.sql:ro
     healthcheck:
       # Read the credentials from inside the container (set via env_file), using
       # single quotes so the shell expands $POSTGRES_* at runtime rather than

@@ -109,7 +109,9 @@
 		.profile-box .bio-display {
 			margin: 0;
 			white-space: pre-wrap;
-			overflow-y: auto;
+			hyphens: auto;
+			overflow-wrap: anywhere;
+			word-break: break-word;
 		}
 
 		.profile-box .bio-empty {
@@ -449,6 +451,13 @@
 		</section>
 	</div>
 
+	<section class="profile-section" aria-labelledby="account-title">
+		<h2 id="account-title">Account</h2>
+		<button class="profile-action delete-account-action" type="button">
+			Delete my account
+		</button>
+	</section>
+
 	<section class="profile-section" aria-labelledby="teams-title">
 		{% set joined_team = namespace(found=false) %}
 		{% for team in teams %}
@@ -625,6 +634,26 @@
 				}
 				window.location.reload();
 			});
+
+		});
+
+		document.querySelector("button.delete-account-action")?.addEventListener("click", async () => {
+			if (!window.confirm(
+				"Delete your account permanently? This will remove your profile, team, events, and pictures."
+			)) {
+				return;
+			}
+			const response = await fetch("/account", { method: "DELETE" });
+			if (response.status === 401) {
+				window.location.href = "{{ url_for('login') }}";
+				return;
+			}
+			if (!response.ok) {
+				const error = await response.json().catch(() => ({}));
+				window.alert(error.error || "Your account could not be deleted.");
+				return;
+			}
+			window.location.href = "{{ url_for('login') }}";
 		});
 
 		document.querySelectorAll("button.team-action").forEach((button) => {

@@ -28,6 +28,9 @@
 			font-size: 0.92rem;
 			line-height: 1.6;
 			white-space: pre-wrap;
+			hyphens: auto;
+			overflow-wrap: anywhere;
+			word-break: break-word;
 		}
 
 		.event-action, .upload-button {
@@ -44,12 +47,18 @@
 			color: var(--accent);
 		}
 		.trash-section { margin-top: 24px; }
+		.trash-section h3 { margin: 0 0 8px; }
 		.trash-collected {
 			margin: 0;
-			font-size: 1rem;
 			color: var(--text-muted);
 		}
-		.trash-collected strong { color: var(--text); margin-right: 6px; }
+		.trash-collected strong {
+			display: block;
+			margin-bottom: 2px;
+			font-size: 2rem;
+			line-height: 1.2;
+			color: var(--accent);
+		}
 
 		.picture-section { margin-top: 24px; }
 		.picture-section h3 { margin-top: 0; }
@@ -64,6 +73,7 @@
 			display: block;
 			width: 100%;
 		}
+		.picture-items > a[hidden] { display: none; }
 		.picture-grid img {
 			width: 100%;
 			height: auto;
@@ -71,6 +81,26 @@
 			border-radius: var(--radius);
 		}
 		.empty-state { color: var(--text-muted); }
+		.picture-pagination {
+			display: flex;
+			justify-content: flex-end;
+			gap: 8px;
+			margin-top: 16px;
+		}
+		.picture-pagination button {
+			padding: 7px 10px;
+			border: 1px solid var(--accent);
+			border-radius: var(--radius);
+			background: var(--surface);
+			color: var(--accent);
+			font: 600 0.78rem var(--font-ui);
+			cursor: pointer;
+		}
+		.picture-pagination button:disabled {
+			border-color: var(--border);
+			color: var(--text-muted);
+			cursor: not-allowed;
+		}
 {% endblock %}
 
 {% block content %}
@@ -98,8 +128,10 @@
 			</section>
 
 			<section class="trash-section" aria-labelledby="trash-title">
+				<h3 id="trash-title">Trash collected</h3>
 				<p class="trash-collected">
-					<strong>Trash Collected:</strong> {{ trash }} kg
+					<strong>{{ trash | default(0, true) }} kg</strong>
+					Total collected for this event
 				</p>
 			</section>
 
@@ -117,7 +149,7 @@
 				{% else %}
 					<p class="empty-state">Log in and participate to upload a picture.</p>
 				{% endif %}
-				<div class="picture-grid">
+				<div class="picture-grid picture-items">
 					{% for picture in pictures %}
 						<a href="{{ url_for('serve_picture', filename=picture.file_path) }}"
 						   target="_blank" rel="noopener">
@@ -127,6 +159,10 @@
 					{% else %}
 						<p class="empty-state">No pictures have been uploaded yet.</p>
 					{% endfor %}
+				</div>
+				<div class="picture-pagination" hidden>
+					<button type="button" class="picture-previous">Previous</button>
+					<button type="button" class="picture-next">Next</button>
 				</div>
 			</section>
 		{% endif %}
@@ -149,6 +185,34 @@
 			}
 			if (response.ok) window.location.reload();
 		});
+
+		const pictureItems = [...document.querySelectorAll(".picture-items > a")];
+		const picturePagination = document.querySelector(".picture-pagination");
+		const picturePrevious = picturePagination?.querySelector(".picture-previous");
+		const pictureNext = picturePagination?.querySelector(".picture-next");
+		const picturePageSize = 3;
+		let picturePage = 0;
+		const pictureTotalPages = Math.ceil(pictureItems.length / picturePageSize);
+
+		function renderPicturePage() {
+			pictureItems.forEach((item, index) => {
+				item.hidden = index < picturePage * picturePageSize ||
+					index >= (picturePage + 1) * picturePageSize;
+			});
+			if (picturePagination) picturePagination.hidden = pictureTotalPages <= 1;
+			if (picturePrevious) picturePrevious.disabled = picturePage === 0;
+			if (pictureNext) pictureNext.disabled = picturePage >= pictureTotalPages - 1;
+		}
+
+		picturePrevious?.addEventListener("click", () => {
+			picturePage--;
+			renderPicturePage();
+		});
+		pictureNext?.addEventListener("click", () => {
+			picturePage++;
+			renderPicturePage();
+		});
+		renderPicturePage();
 	</script>
 	{% endif %}
 {% endblock %}
