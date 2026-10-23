@@ -809,20 +809,32 @@ def create_team(admin_id, team_name, city, country, bio=None):
 
 
 def delete_team(team_id, admin_id):
-    """Delete a team owned by the account and clear its team status."""
+    """Delete an owned team and all records that reference its team ID."""
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                DELETE FROM Teams
+                SELECT admin_id
+                FROM Teams
                 WHERE id = %s AND admin_id = %s
-                RETURNING admin_id
                 """,
                 (team_id, admin_id),
             )
-            deleted = cur.fetchone()
-            if deleted is None:
+            owner = cur.fetchone()
+            if owner is None:
                 return False
+
+            # Subscriptions store the followed team account ID, not Teams.id.
+            cur.execute("DELETE FROM Subscriptions WHERE team_id = %s", (owner[0],))
+            cur.execute("DELETE FROM TeamMembers WHERE team_id = %s", (team_id,))
+            cur.execute("DELETE FROM Pictures WHERE team_id = %s", (team_id,))
+            cur.execute(
+                """
+                DELETE FROM Teams
+                WHERE id = %s
+                """,
+                (team_id,),
+            )
             cur.execute(
                 "UPDATE Accounts SET isTeam = FALSE WHERE id = %s",
                 (admin_id,),
