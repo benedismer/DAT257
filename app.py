@@ -298,6 +298,21 @@ def user_detail(user_id):
     )
 
 
+@app.get("/users")
+def user_directory():
+    user_id = session.get("user_id")
+    if user_id is None:
+        return redirect(url_for("login"))
+    search = request.args.get("q", "").strip()
+    team_member_id = user_id if request.args.get("view") == "team" else None
+    return render_template(
+        "Users.html",
+        users=get_users(search, user_id, team_member_id),
+        search=search,
+        team_only=team_member_id is not None,
+    )
+
+
 @app.get("/teams/<int:team_id>")
 def team_detail(team_id):
     team, members = get_team_profile(team_id)
@@ -429,11 +444,11 @@ def log_trash(event_id):
             message_type = "error"
         ))
         #return jsonify(error="You can only log trash for events that have already taken place."), 400
-    if amount is '':
+    if amount == '':
         return jsonify(error="Amount must not be NULL"), 400
     if int(amount) < 1:
         return jsonify(error="Amount must be greater than 1"), 400
-    if type is '':
+    if type == '':
         return jsonify(error="Type must not be NULL"), 400
     if not add_trash(event_id, username, amount, type):
         return jsonify(error="Could not log trash."), 401

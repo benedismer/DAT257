@@ -518,7 +518,8 @@ def get_team_leaderboard():
                 LEFT JOIN trash_totals tt ON tt.team_id = t.id
                 GROUP BY t.id, t.name, mc.member_count, ec.event_count, tt.total_kg
                 ORDER BY score DESC NULLS LAST, t.name ASC
-                """
+                """,
+                [],
             )
             return cur.fetchall()
 
