@@ -373,6 +373,9 @@ def edit_event(event_id):
         return jsonify(error="Missing fields: " + ", ".join(missing_fields)), 400
 
     try:
+        bio = str(data.get("bio", "")).strip()
+        if len(bio) > 500:
+            return jsonify(error="Event bio must be 500 characters or fewer."), 400
         event_id = update_event(
             event_id,
             username,
@@ -383,7 +386,7 @@ def edit_event(event_id):
             date.fromisoformat(str(data["date"])),
             float(data["latitude"]),
             float(data["longitude"]),
-            str(data.get("bio", "")).strip() or None,
+            bio or None,
         )
     except (TypeError, ValueError):
         return jsonify(error="Invalid event data."), 400
@@ -574,8 +577,16 @@ def create_team_route():
 
     city = str(data.get("city", "")).strip() or None
     country = str(data.get("country", "")).strip() or None
+    bio = str(data.get("bio", "")).strip()
+    if len(bio) > 500:
+        return render_template(
+            "login.html",
+            message="Your team bio must be 500 characters or fewer.",
+            message_type="error",
+            create_team_error=True,
+        ), 400
 
-    team_id = create_team(user_id, team_name, city, country)
+    team_id = create_team(user_id, team_name, city, country, bio)
     if team_id is None:
         return render_template(
             "login.html",
@@ -606,6 +617,9 @@ def create_event():
         # u r only allowed to create an event if you are logged in
         return jsonify(error="You must be logged in to create an event."), 401
     try:
+        bio = str(data.get("bio", "")).strip()
+        if len(bio) > 500:
+            return jsonify(error="Event bio must be 500 characters or fewer."), 400
         country = str(data.get("country", "")).strip() or None
         city = str(data.get("city", "")).strip() or None
         event_id = add_events(
@@ -660,6 +674,9 @@ def create_event_at_trash_location(location_id):
     if missing_fields:
         return jsonify(error="Missing fields: " + ", ".join(missing_fields)), 400
     try:
+        bio = str(data.get("bio", "")).strip()
+        if len(bio) > 500:
+            return jsonify(error="Event bio must be 500 characters or fewer."), 400
         event_id = create_event_from_trash_location(
             location_id,
             str(data["event_name"]).strip(),
@@ -668,7 +685,7 @@ def create_event_at_trash_location(location_id):
             time.fromisoformat(str(data["time"])),
             date.fromisoformat(str(data["date"])),
             username,
-            str(data.get("bio", "")).strip() or None,
+            bio or None,
         )
     except (TypeError, ValueError) as exc:
         return jsonify(error=f"Invalid event data: {exc}"), 400

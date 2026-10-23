@@ -289,7 +289,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertIn("FROM TeamMembers", cursor.executed[0][0])
         self.assertEqual(
             cursor.executed[0][1],
-            (7, "Green Gothenburg", "Gothenburg", "Sweden", 7),
+            (7, "Green Gothenburg", "Gothenburg", "Sweden", None, 7),
         )
         self.assertIn("UPDATE Accounts", cursor.executed[1][0])
         self.assertIn("isTeam = TRUE", cursor.executed[1][0])
@@ -330,7 +330,7 @@ class DatabaseTests(unittest.TestCase):
 
         self.assertIsNone(team_id)
         self.assertIn("WHERE member_id = %s", cursor.executed[0][0])
-        self.assertEqual(cursor.executed[0][1], (7, "Another Team", None, None, 7))
+        self.assertEqual(cursor.executed[0][1], (7, "Another Team", None, None, None, 7))
 
     def test_delete_team_removes_owned_team_and_clears_team_flag(self):
         cursor = FakeCursor(fetchone_sequence=[(7,)])
@@ -401,7 +401,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(parameters, [])
 
     def test_get_team_profile_returns_team_and_leader_and_members(self):
-        team = (4, "Book Club", "Gothenburg", "Sweden", 7, "alice")
+        team = (4, "Book Club", "Gothenburg", "Sweden", 7, "alice", None)
         members = [(7, "alice", True), (9, "bob", False)]
         cursor = FakeCursor(rows=members, fetchone_sequence=[team])
 
@@ -733,7 +733,9 @@ class RouteTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 302)  # redirect to home
-        mock_create_team.assert_called_once_with(7, "Green Squad", "Gothenburg", "Sweden")
+        mock_create_team.assert_called_once_with(
+            7, "Green Squad", "Gothenburg", "Sweden", ""
+        )
 
     @patch.object(app_module, "create_team", return_value=1)
     def test_create_team_without_location_is_allowed(self, mock_create_team):
@@ -744,7 +746,7 @@ class RouteTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        mock_create_team.assert_called_once_with(7, "Wanderers", None, None)
+        mock_create_team.assert_called_once_with(7, "Wanderers", None, None, "")
 
     @patch.object(app_module, "create_team", return_value=1)
     def test_create_team_requires_team_name(self, mock_create_team):
