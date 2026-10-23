@@ -151,7 +151,14 @@ PHOTOS = [
     # (event index, uploader username, team username, filename)
     (0, "alice", "GreenCrew", "river-cleanup-alice.png"),
     (0, "bob", "GreenCrew", "river-cleanup-bob.png"),
+    # Extra River cleanup photos keep one seeded event above the pagination threshold.
+    (0, "charlie", "GreenCrew", "park-sorting-session-charlie.png"),
+    (0, "diana", "GreenCrew", "beach-sweep-diana.png"),
     (1, "charlie", "EcoRiders", "park-sorting-session-charlie.png"),
+    # Extra records keep Alice's user page and Clean Coast's team page
+    # above the pagination threshold.
+    (1, "alice", "CleanCoast", "river-cleanup-alice.png"),
+    (4, "alice", "CleanCoast", "river-cleanup-bob.png"),
     (3, "diana", "CleanCoast", "beach-sweep-diana.png"),
     (4, "bob", "CleanCoast", "harbour-rubbish-run-bob.png"),
     (6, "eve", "GreenCrew", "neighbourhood-recycling-eve.png"),

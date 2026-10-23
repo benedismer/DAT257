@@ -20,6 +20,27 @@
 			border-radius: var(--radius);
 		}
 		.picture-feed a + a { display: block; margin-top: 20px; }
+		.picture-items > a[hidden] { display: none; }
+		.picture-pagination {
+			display: flex;
+			justify-content: flex-end;
+			gap: 8px;
+			margin-top: 16px;
+		}
+		.picture-pagination button {
+			padding: 7px 10px;
+			border: 1px solid var(--accent);
+			border-radius: var(--radius);
+			background: var(--surface);
+			color: var(--accent);
+			font: 600 0.78rem var(--font-ui);
+			cursor: pointer;
+		}
+		.picture-pagination button:disabled {
+			border-color: var(--border);
+			color: var(--text-muted);
+			cursor: not-allowed;
+		}
 {% endblock %}
 {% block content %}
 	<div class="page">
@@ -55,6 +76,7 @@
 			</section>
 			<section class="feed picture-feed" aria-labelledby="user-picture-feed-title">
 				<h3 id="user-picture-feed-title">{{ profile[1] }}'s pictures</h3>
+				<div class="picture-items">
 				{% for picture in pictures %}
 					<a href="{{ url_for('serve_picture', filename=picture.file_path) }}"
 					   target="_blank" rel="noopener">
@@ -64,7 +86,40 @@
 				{% else %}
 					<p class="empty">No pictures uploaded yet.</p>
 				{% endfor %}
+				</div>
+				<div class="picture-pagination" hidden>
+					<button type="button" class="picture-previous">Previous</button>
+					<button type="button" class="picture-next">Next</button>
+				</div>
 			</section>
 		{% endif %}
 	</div>
+{% endblock %}
+{% block scripts %}
+	{% if profile %}
+	<script>
+		(function () {
+			const items = [...document.querySelectorAll(".picture-items > a")];
+			const pagination = document.querySelector(".picture-pagination");
+			const previous = pagination?.querySelector(".picture-previous");
+			const next = pagination?.querySelector(".picture-next");
+			const pageSize = 3;
+			let page = 0;
+			const totalPages = Math.ceil(items.length / pageSize);
+
+			function renderPage() {
+				items.forEach((item, index) => {
+					item.hidden = index < page * pageSize || index >= (page + 1) * pageSize;
+				});
+				if (pagination) pagination.hidden = totalPages <= 1;
+				if (previous) previous.disabled = page === 0;
+				if (next) next.disabled = page >= totalPages - 1;
+			}
+
+			previous?.addEventListener("click", () => { page--; renderPage(); });
+			next?.addEventListener("click", () => { page++; renderPage(); });
+			renderPage();
+		}());
+	</script>
+	{% endif %}
 {% endblock %}
