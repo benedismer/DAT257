@@ -76,6 +76,22 @@ EVENTS = [
     ("Autumn park cleanup",    "Sweden", "Gothenburg", time(13, 0),  today - timedelta(days=7),   57.7010, 11.9710, "GreenCrew"),
     ("Spring canal run",       "Sweden", "Gothenburg", time(10, 30), today - timedelta(days=30),  57.7080, 11.9730, "alice"),
     ("Ocean cleanup",          "Sweden", "Gothenburg", time(10, 0),  today + timedelta(days=4),   57.7089, 11.9746, "OceanHeroes"),
+    # --- Olden events: in the recent past (within the last year) ---
+    ("Olden harbour tidy",     "Sweden", "Gothenburg", time(9, 30),  today - timedelta(days=60),  57.7051, 11.9680, "GreenCrew"),
+    ("Olden meadow cleanup",   "Sweden", "Malmö",      time(13, 30), today - timedelta(days=120), 55.6040, 13.0010, "CleanCoast"),
+    ("Olden canal scrub",      "Sweden", "Gothenburg", time(11, 0),  today - timedelta(days=200), 57.7072, 11.9701, "alice"),
+    # --- Ancient events: more than a year in the past ---
+    ("Ancient riverside sweep","Sweden", "Gothenburg", time(10, 0),  today - timedelta(days=400), 57.7085, 11.9725, "GreenCrew"),
+    ("Ancient forest cleanup", None,     None,         time(9, 0),   today - timedelta(days=540), 57.7209, 12.0320, "EcoRiders"),
+    ("Ancient beach rescue",   "Sweden", "Malmö",      time(8, 0),   today - timedelta(days=800), 55.6060, 13.0025, "CleanCoast"),
+]
+
+# (latitude, longitude, creator_username)
+TRASH_LOCATIONS = [
+    (57.7118, 11.9624, "alice"),       # under the Älvsborg bridge
+    (57.6984, 11.9872, "bob"),         # near the river path
+    (55.6171, 12.9915, "diana"),       # Malmö waterfront
+    (57.7245, 12.0142, "GreenCrew"),   # forest trail outside the city
 ]
 
 # (subscriber_username, team_username)  — users following teams
@@ -138,6 +154,7 @@ def reset(cur):
     """Delete all rows in dependency order."""
     cur.execute("DELETE FROM pictures")
     cur.execute("DELETE FROM eventattendance")
+    cur.execute("DELETE FROM trashlocations")
     cur.execute("DELETE FROM teammembers")
     cur.execute("DELETE FROM events")
     cur.execute("DELETE FROM subscriptions")
@@ -201,6 +218,18 @@ def insert_events(cur):
         event_ids.append(cur.fetchone()[0])
     print(f"  ✓ {len(EVENTS)} events")
     return event_ids
+
+
+def insert_trash_locations(cur):
+    for latitude, longitude, username in TRASH_LOCATIONS:
+        cur.execute(
+            """
+            INSERT INTO trashlocations (latitude, longitude, username)
+            VALUES (%s, %s, %s)
+            """,
+            (latitude, longitude, username),
+        )
+    print(f"  ✓ {len(TRASH_LOCATIONS)} trashy locations")
 
 
 def insert_subscriptions(cur, account_ids):
@@ -310,6 +339,7 @@ def main():
             account_ids = insert_accounts(cur)
             team_ids = insert_teams(cur, account_ids)
             event_ids = insert_events(cur)
+            insert_trash_locations(cur)
             insert_subscriptions(cur, account_ids)
             insert_team_members(cur, account_ids)
             insert_attendance(cur, event_ids, account_ids)

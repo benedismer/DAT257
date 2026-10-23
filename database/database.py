@@ -5,6 +5,7 @@ from pathlib import Path
 import psycopg
 from werkzeug.security import generate_password_hash, check_password_hash
 from picture import Picture
+from trash_location import TrashLocation
 # Psycopg is the most popular PostgreSQL database adapter for Python
 # https://www.psycopg.org/psycopg3/docs/basic/usage.html for method usages
 
@@ -42,6 +43,105 @@ def add_events(event_name, country, city, event_time, event_date, latitude, long
             return event_id
 
 
+def add_trash_location(latitude, longitude, username):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO TrashLocations (latitude, longitude, username)
+                VALUES (%s, %s, %s)
+                RETURNING id, latitude, longitude, created_at
+                """,
+                (latitude, longitude, username),
+            )
+            row = cur.fetchone()
+            return TrashLocation(*row)
+
+
+def get_trash_locations():
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, latitude, longitude, created_at
+                FROM TrashLocations
+                WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '6 months'
+                ORDER BY id
+                """
+            )
+            return [TrashLocation(*row) for row in cur.fetchall()]
+
+
+def delete_old_trash_locations():
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM TrashLocations
+                WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '6 months'
+                """
+            )
+            return cur.rowcount
+
+
+def create_event_from_trash_location(
+    location_id,
+    event_name,
+    country,
+    city,
+    event_time,
+    event_date,
+    username,
+    bio=None,
+):
+    """Create an event at a marker's coordinates and remove that marker."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT latitude, longitude
+                FROM TrashLocations
+                WHERE id = %s
+                  AND created_at >= CURRENT_TIMESTAMP - INTERVAL '6 months'
+                FOR UPDATE
+                """,
+                (location_id,),
+            )
+            location = cur.fetchone()
+            if location is None:
+                return None
+            cur.execute(
+                """
+                INSERT INTO Events
+                    (event_name, country, city, time, date, latitude, longitude, username, bio)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    event_name,
+                    country,
+                    city,
+                    event_time,
+                    event_date,
+                    location[0],
+                    location[1],
+                    username,
+                    bio,
+                ),
+            )
+            event_id = cur.fetchone()[0]
+            cur.execute(
+                """
+                INSERT INTO EventAttendance (eventid, username)
+                VALUES (%s, %s)
+                ON CONFLICT (eventid, username) DO NOTHING
+                """,
+                (event_id, username),
+            )
+            cur.execute("DELETE FROM TrashLocations WHERE id = %s", (location_id,))
+            return event_id
+
+
 def add_picture(file_path, uploader_id, event_id, team_id=None):
     """Store metadata for a picture uploaded for an event."""
     with get_db_connection() as conn:
@@ -64,6 +164,7 @@ def get_events(
     attending_username=None,
     past_attending=False,
     team_member_id=None,
+    past_all=False,
 ):
     order_by = {
         "date_asc": "date ASC, time ASC, id ASC",
@@ -102,6 +203,11 @@ def get_events(
                     ") OR e.username = %s)"
                 )
                 parameters.extend([attending_username, attending_username])
+                conditions.append(
+                    "(e.date < CURRENT_DATE OR "
+                    "(e.date = CURRENT_DATE AND e.time < CURRENT_TIME))"
+                )
+            elif past_all:
                 conditions.append(
                     "(e.date < CURRENT_DATE OR "
                     "(e.date = CURRENT_DATE AND e.time < CURRENT_TIME))"
@@ -562,6 +668,36 @@ def delete_old_events():
             )
             cur.execute("DELETE FROM events WHERE date < %s", (cutoff_date,))
             return cur.rowcount
+
+
+def get_old_event_picture_paths():
+    cutoff_date = date.today() - timedelta(days=365)
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT file_path
+                FROM Pictures p
+                JOIN Events e ON e.id = p.event_id
+                WHERE e.date < %s
+                """,
+                (cutoff_date,),
+            )
+            return [row[0] for row in cur.fetchall()]
+
+
+def delete_old_pictures():
+    """Delete picture records older than one year and return their file paths."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM Pictures
+                WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '1 year'
+                RETURNING file_path
+                """
+            )
+            return [row[0] for row in cur.fetchall()]
 
 def signup_for_account(username, password):
     password_hash = generate_password_hash(password)

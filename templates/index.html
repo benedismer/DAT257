@@ -16,6 +16,13 @@
 			padding: 40px 0 72px;
 		}
 
+		.trash-location-marker {
+			background: #d64040;
+			border: 2px solid #fff;
+			border-radius: 50%;
+			box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+		}
+
 		.page-intro {
 			max-width: 60ch;
 			margin: 0 0 24px;
@@ -34,7 +41,7 @@
 
 		/* map framed with a visible border rather than a shadow (design.md §3) */
 		#map {
-			height: 520px;
+			height: 680px;
 			border: 1px solid var(--border);
 			border-radius: var(--radius);
 			background: var(--surface);
@@ -105,7 +112,7 @@
 		.event-form {
 			display: grid;
 			gap: 10px;
-			min-width: 232px;
+			min-width: 280px;
 			font-family: var(--font-ui);
 		}
 
@@ -113,6 +120,35 @@
 			font-size: 1rem;
 			font-weight: 600;
 			color: var(--text);
+		}
+
+		.event-form .form-subtitle {
+			margin: -5px 0 2px;
+			color: var(--text-muted);
+			font-size: 0.78rem;
+			line-height: 1.45;
+		}
+
+		.event-form .location-summary {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			padding: 9px 10px;
+			border: 1px solid #e9b4b4;
+			border-radius: var(--radius);
+			background: #fff5f5;
+			color: #8f2f2f;
+			font-size: 0.76rem;
+		}
+
+		.event-form .location-dot {
+			width: 10px;
+			height: 10px;
+			flex: 0 0 auto;
+			border: 2px solid #fff;
+			border-radius: 50%;
+			background: #d64040;
+			box-shadow: 0 0 0 1px #d64040;
 		}
 
 		.event-form label {
@@ -135,7 +171,24 @@
 			font: 0.9rem var(--font-ui);
 		}
 
+		.event-form textarea {
+			resize: vertical;
+			min-height: 58px;
+			padding: 8px 10px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			color: var(--text);
+			font: 0.9rem var(--font-ui);
+		}
+
 		.event-form input:focus {
+			outline: none;
+			border-color: var(--accent);
+			box-shadow: 0 0 0 2px var(--accent-light);
+		}
+
+		.event-form textarea:focus {
 			outline: none;
 			border-color: var(--accent);
 			box-shadow: 0 0 0 2px var(--accent-light);
@@ -154,6 +207,24 @@
 		}
 
 		.event-form button:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+		.event-form .secondary-button {
+			margin-top: 0;
+			border-color: var(--border);
+			background: var(--surface);
+			color: var(--text-muted);
+		}
+
+		.event-form .secondary-button:hover {
+			border-color: var(--text-muted);
+			background: var(--bg);
+		}
+
+		.event-form .form-actions {
+			display: grid;
+			grid-template-columns: 1fr 1.4fr;
+			gap: 8px;
+		}
 
 		.form-message {
 			margin: 2px 0 0;
@@ -176,10 +247,10 @@
 	<div class="page">
 		<div class="page-intro">
 			<h2>Where things are happening</h2>
-			<p>Each pin is an event. Click a pin for details, or click anywhere on the map to add one.</p>
+			<p>Each pin is an event. Red dots mark trashy locations. Click the map to add either one.</p>
 		</div>
 		<div id="map"></div>
-		<p class="map-hint"># click the map to drop a new event</p>
+		<p class="map-hint"># click the map to create an event or mark a trashy location</p>
 
 		<div class="leaderboard-scroll">
 
@@ -222,6 +293,7 @@
 		const events = {{ events | default([]) | tojson }};
 		const attendingEventIds = new Set({{ attending_event_ids | default([]) | list | tojson }});
 		const teamEventIds = new Set({{ team_event_ids | default([]) | list | tojson }});
+		const trashLocations = {{ trash_locations | default([]) | tojson }};
 
 		function addEventMarker(event) {
 			const attendanceMessage = attendingEventIds.has(event[0])
@@ -243,32 +315,77 @@
 
 		events.forEach(addEventMarker);
 
-		map.on("click", (clickEvent) => {
-			const latitude = clickEvent.latlng.lat.toFixed(6);
-			const longitude = clickEvent.latlng.lng.toFixed(6);
+		function addTrashLocationMarker(location) {
+			const marker = L.marker([location.latitude, location.longitude], {
+				icon: L.divIcon({
+					className: "trash-location-marker",
+					iconSize: [16, 16],
+					iconAnchor: [8, 8]
+				})
+			}).addTo(map);
+			marker.bindPopup(`
+				<div class="event-form">
+					<span class="form-title">Trashy location</span>
+					<p class="form-subtitle">This spot is waiting for a cleanup crew.</p>
+					<button type="button" class="create-event-from-location">Organize a cleanup</button>
+				</div>
+			`);
+			marker.on("popupopen", () => {
+				marker.getPopup().getElement()
+					.querySelector(".create-event-from-location")
+					.addEventListener("click", () => openEventForm(
+						{ lat: location.latitude, lng: location.longitude },
+						`/trash-locations/${location.id}/events`,
+						() => {
+							map.removeLayer(marker);
+							trashLocations.splice(trashLocations.indexOf(location), 1);
+						},
+						{ cleanup: true }
+					));
+			});
+		}
+
+		trashLocations.forEach(addTrashLocationMarker);
+
+		function openEventForm(latlng, endpoint, onSaved, options = {}) {
+			const isCleanup = options.cleanup === true;
 			const form = document.createElement("form");
-			form.className = "event-form";
+			form.className = isCleanup ? "event-form cleanup-event-form" : "event-form";
+			const header = isCleanup
+				? `
+				<span class="form-title">Turn this spot into a cleanup</span>
+				<p class="form-subtitle">Give your event a name and invite people to make this location shine again.</p>
+				<div class="location-summary">
+					<span class="location-dot" aria-hidden="true"></span>
+					<span>Event location locked to the trashy spot</span>
+				</div>`
+				: `<span class="form-title">Create an event</span>`;
+			const submitLabel = isCleanup ? "Create cleanup event" : "Create event";
 			form.innerHTML = `
-				<span class="form-title">Create event</span>
-				<label>Name <input name="event_name" required></label>
-				<label>Country <input name="country"></label>
-				<label>City <input name="city"></label>
-				<label>Date <input name="date" type="date" required></label>
-				<label>Time <input name="time" type="time" required></label>
-				<button type="submit">Save event</button>
+				${header}
+				<label>Event name <input name="event_name" placeholder="e.g. Riverside cleanup" required></label>
+				<label>Country <input name="country" placeholder="Sweden"></label>
+				<label>City <input name="city" placeholder="Gothenburg"></label>
+				<label>Date <input name="date" type="date" min="${new Date().toISOString().split("T")[0]}" required></label>
+				<label>Start time <input name="time" type="time" required></label>
+				<label>What should volunteers know?
+					<textarea name="bio" maxlength="500" placeholder="Bring gloves, bags, and good energy..."></textarea>
+				</label>
+				<div class="form-actions">
+					<button type="button" class="secondary-button cancel-event">Cancel</button>
+					<button type="submit">${submitLabel}</button>
+				</div>
 				<p class="form-message" aria-live="polite"></p>
 			`;
-
+			form.querySelector(".cancel-event").addEventListener("click", () => map.closePopup());
 			form.addEventListener("submit", async (submitEvent) => {
 				submitEvent.preventDefault();
-				const formData = new FormData(form);
-				const payload = Object.fromEntries(formData.entries());
-				payload.latitude = latitude;
-				payload.longitude = longitude;
+				const payload = Object.fromEntries(new FormData(form).entries());
+				payload.latitude = latlng.lat.toFixed(6);
+				payload.longitude = latlng.lng.toFixed(6);
 				const message = form.querySelector(".form-message");
-
 				try {
-					const response = await fetch("/events", {
+					const response = await fetch(endpoint, {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify(payload)
@@ -277,14 +394,48 @@
 					if (!response.ok) throw new Error(result.error || "Could not save event");
 					message.textContent = "Event saved.";
 					addEventMarker([result.id, payload.event_name, payload.country, payload.city,
-						payload.time, payload.date, latitude, longitude]);
+						payload.time, payload.date, payload.latitude, payload.longitude]);
+					onSaved?.();
 					map.closePopup();
 				} catch (error) {
 					message.textContent = error.message;
 				}
 			});
+			L.popup().setLatLng(latlng).setContent(form).openOn(map);
+		}
 
-			L.popup().setLatLng(clickEvent.latlng).setContent(form).openOn(map);
+		map.on("click", (clickEvent) => {
+			const choice = document.createElement("div");
+			choice.className = "event-form";
+			choice.innerHTML = `
+				<strong>What would you like to add?</strong>
+				<button type="button" class="choose-event">Create event</button>
+				<button type="button" class="choose-location">Mark trashy location</button>
+				<p class="form-message" aria-live="polite"></p>
+			`;
+			choice.querySelector(".choose-event").addEventListener("click", () =>
+				openEventForm(clickEvent.latlng, "/events")
+			);
+			choice.querySelector(".choose-location").addEventListener("click", async () => {
+				const message = choice.querySelector(".form-message");
+				try {
+					const response = await fetch("/trash-locations", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							latitude: clickEvent.latlng.lat,
+							longitude: clickEvent.latlng.lng
+						})
+					});
+					const result = await response.json();
+					if (!response.ok) throw new Error(result.error || "Could not save location");
+					addTrashLocationMarker(result.location);
+					map.closePopup();
+				} catch (error) {
+					message.textContent = error.message;
+				}
+			});
+			L.popup().setLatLng(clickEvent.latlng).setContent(choice).openOn(map);
 		});
 	</script>
 {% endblock %}
