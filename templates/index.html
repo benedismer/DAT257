@@ -269,8 +269,7 @@
 					<th scope="col">Rank</th>
 					<th scope="col">Team</th>
 					<th scope="col">Average attendance</th>
-					<th scope="col">Average kg per person</th>
-					<th scope="col">Average kg per event</th>
+					<th scope="col">Average kg per person per event</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -280,10 +279,9 @@
 						<td>{{ team[1] }}</td>
 						<td>{% if team[2] is not none %}{{ "%.2f"|format(team[2]) }}%{% else %}0.00%{% endif %}</td>
 						<td>{{ "%.2f"|format(team[5] or 0) }} kg</td>
-						<td>{{ "%.2f"|format(team[6] or 0) }} kg</td>
 					</tr>
 				{% else %}
-					<tr><td colspan="5">No teams yet.</td></tr>
+					<tr><td colspan="4">No teams yet.</td></tr>
 				{% endfor %}
 			</tbody>
 		</table>
